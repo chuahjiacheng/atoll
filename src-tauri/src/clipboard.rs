@@ -50,6 +50,24 @@ pub struct Clip {
     pub pinned: bool,
     #[serde(default)]
     pub hash: u64,
+    /// "link" | "colour" | "json" | "code" (clipintel.rs).
+    #[serde(default)]
+    pub types: Vec<String>,
+    /// Transforms offered for this item ("jsonPretty", "jsonMinify", "stripTracking").
+    #[serde(default)]
+    pub transforms: Vec<String>,
+    /// What secret the text holds ("GitHub token"); `text` is then masked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secret: Option<String>,
+    /// The real text of a secret item, DPAPI-encrypted, base64. Never sent to the page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sealed: Option<String>,
+    /// When a secret item is forgotten (ms). `None` = kept.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    /// Text found in an image (secrets masked).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ocr: Option<String>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -78,8 +96,37 @@ fn sealed_file() -> PathBuf {
 /// "Skip password manager entries" (read by the listener thread).
 static SKIP_PRIVATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
-pub fn list(app: &AppHandle) -> Vec<Clip> {
+/// Every item as stored, sealed secrets included (Rust side only).
+fn all(app: &AppHandle) -> Vec<Clip> {
     app.state::<ClipboardState>().items.lock().unwrap().clone()
+}
+
+/// Items for the page and other modules: secrets stay masked.
+pub fn list(app: &AppHandle) -> Vec<Clip> {
+    all(app)
+        .into_iter()
+        .map(|mut c| {
+            c.sealed = None;
+            c
+        })
+        .collect()
+}
+
+fn seal(text: &str) -> Result<String, String> {
+    use base64::Engine;
+    crate::crypt::protect(text.as_bytes()).map(|b| base64::engine::general_purpose::STANDARD.encode(b))
+}
+
+/// The real text of an item (unseals secrets).
+fn real_text(c: &Clip) -> Result<String, String> {
+    use base64::Engine;
+    match &c.sealed {
+        Some(s) => {
+            let bytes = base64::engine::general_purpose::STANDARD.decode(s).map_err(|e| e.to_string())?;
+            String::from_utf8(crate::crypt::unprotect(&bytes)?).map_err(|e| e.to_string())
+        }
+        None => Ok(c.text.clone().unwrap_or_default()),
+    }
 }
 
 fn emit(app: &AppHandle) {
@@ -89,7 +136,7 @@ fn emit(app: &AppHandle) {
 /// Save to disk. Without "keep after restart", only pinned items are written.
 fn save(app: &AppHandle) {
     let c = app.state::<AppState>().settings.lock().unwrap().clipboard.clone();
-    let items: Vec<Clip> = list(app).into_iter().filter(|x| c.persist || x.pinned).collect();
+    let items: Vec<Clip> = all(app).into_iter().filter(|x| c.persist || x.pinned).collect();
     let result = if c.encrypt {
         serde_json::to_vec(&Stored { items })
             .map_err(|e| e.to_string())
@@ -124,7 +171,18 @@ fn load(app: &AppHandle) {
     } else {
         media::load_json(&file())
     };
-    let items: Vec<Clip> = stored.items.into_iter().filter(|c| persist || c.pinned).collect();
+    let now = now_ms();
+    let items: Vec<Clip> = stored
+        .items
+        .into_iter()
+        .filter(|c| persist || c.pinned)
+        .filter(|c| c.pinned || c.expires_at.is_none_or(|t| t > now))
+        .collect();
+    for c in &items {
+        if let (Some(at), false) = (c.expires_at, c.pinned) {
+            schedule_expiry(app, c.id.clone(), at);
+        }
+    }
     let keep: std::collections::HashSet<String> =
         items.iter().flat_map(|c| [c.image.clone(), c.thumb.clone()]).flatten().collect();
     if let Ok(entries) = std::fs::read_dir(dir()) {
@@ -140,30 +198,105 @@ fn load(app: &AppHandle) {
 }
 
 /// Put a new copy at the top (or move an identical older one up).
-fn record(app: &AppHandle, mut clip: Clip) {
+/// Returns the item now at the top (an older identical copy keeps its id).
+fn record(app: &AppHandle, mut clip: Clip) -> Clip {
     let max = app.state::<AppState>().settings.lock().unwrap().clipboard.max_items as usize;
-    {
+    let top = {
         let state = app.state::<ClipboardState>();
         let mut items = state.items.lock().unwrap();
         if let Some(i) = items.iter().position(|c| c.hash == clip.hash && c.kind == clip.kind) {
             let old = items.remove(i);
             remove_files(&clip); // keep the old files, drop the new duplicates
-            clip = Clip { at: clip.at, source: clip.source.or(old.source.clone()), ..old };
+            // A fresh copy of a secret restarts its expiry.
+            let expires_at = if old.pinned { None } else { clip.expires_at.or(old.expires_at) };
+            clip = Clip { at: clip.at, source: clip.source.or(old.source.clone()), expires_at, ..old };
         }
+        let top = clip.clone();
         items.insert(0, clip);
         // Trim the oldest unpinned items beyond the limit.
         while items.len() > max {
             let Some(i) = items.iter().rposition(|c| !c.pinned) else { break };
             remove_files(&items.remove(i));
         }
+        top
+    };
+    save(app);
+    emit(app);
+    if let Some(at) = top.expires_at {
+        schedule_expiry(app, top.id.clone(), at);
+    }
+    top
+}
+
+// ---------- secrets expire ----------
+
+/// Forget a secret item at `at` (ms), unless it was pinned or copied again since.
+fn schedule_expiry(app: &AppHandle, id: String, at: u64) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(at.saturating_sub(now_ms()))).await;
+        expire(&app, &id);
+    });
+}
+
+fn expire(app: &AppHandle, id: &str) {
+    let gone = {
+        let state = app.state::<ClipboardState>();
+        let mut items = state.items.lock().unwrap();
+        let due = |c: &Clip| c.id == id && !c.pinned && c.expires_at.is_some_and(|t| t <= now_ms() + 100);
+        items.iter().position(due).map(|i| items.remove(i))
+    };
+    let Some(clip) = gone else { return };
+    remove_files(&clip);
+    // Also take it off the Windows clipboard if it is still there.
+    if let Some(Content::Text(t)) = winclip::read() {
+        if hash_of(&[t.as_bytes()]) == clip.hash {
+            let _ = winclip::clear();
+        }
     }
     save(app);
     emit(app);
 }
 
+// ---------- text in images ----------
+
+/// Read the text in an image item on a short-lived thread, then store it.
+fn recognise_later(app: &AppHandle, clip: &Clip) {
+    let (Some(path), None) = (clip.image.clone(), clip.ocr.as_ref()) else { return };
+    let (app, id, detect) = (app.clone(), clip.id.clone(), app.state::<AppState>().settings.lock().unwrap().clipboard.detect_secrets);
+    std::thread::spawn(move || {
+        let Ok(bytes) = crate::crypt::read(std::path::Path::new(&path)) else { return };
+        let Some(text) = crate::ocr::recognise(&bytes) else { return };
+        let text = if detect { crate::clipintel::find_secret(&text).map(|s| s.masked).unwrap_or(text) } else { text };
+        let found = {
+            let state = app.state::<ClipboardState>();
+            let mut items = state.items.lock().unwrap();
+            items.iter_mut().find(|c| c.id == id).map(|c| c.ocr = Some(text)).is_some()
+        };
+        if found {
+            save(&app);
+            emit(&app);
+        }
+    });
+}
+
+/// Run a transform on an item and put the result on the clipboard (the
+/// stored item is unchanged). `ocrText` copies the text found in an image.
+pub fn transform(app: &AppHandle, id: &str, op: &str, paste: bool) -> Result<(), String> {
+    let clip = all(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
+    let out = if op == "ocrText" {
+        clip.ocr.clone().ok_or("No text was found in this image.")?
+    } else {
+        crate::clipintel::transform(&real_text(&clip)?, op)?
+    };
+    winclip::write(&Content::Text(out))?;
+    if paste { crate::paste::paste_into_previous() } else { Ok(()) }
+}
+
 /// Build a history entry from clipboard content (saves images to disk,
 /// encrypted when "Encrypt history" is on).
-fn to_clip(content: &Content, source: Option<String>, encrypt: bool) -> Option<Clip> {
+fn to_clip(content: &Content, source: Option<String>, s: &crate::settings::ClipboardSettings) -> Option<Clip> {
+    let encrypt = s.encrypt;
     let id = new_id();
     let base = Clip {
         id: id.clone(),
@@ -178,10 +311,29 @@ fn to_clip(content: &Content, source: Option<String>, encrypt: bool) -> Option<C
         at: now_ms(),
         pinned: false,
         hash: 0,
+        types: vec![],
+        transforms: vec![],
+        secret: None,
+        sealed: None,
+        expires_at: None,
+        ocr: None,
     };
     match content {
         Content::Text(t) if t.chars().count() <= MAX_TEXT => {
-            Some(Clip { kind: "text".into(), hash: hash_of(&[t.as_bytes()]), text: Some(t.clone()), ..base })
+            let a = crate::clipintel::analyse(t, s.detect_secrets);
+            let hash = hash_of(&[t.as_bytes()]);
+            let base = Clip { kind: "text".into(), hash, types: a.types, transforms: a.transforms, ..base };
+            match a.secret {
+                // Never keep a secret we could not encrypt.
+                Some(secret) => Some(Clip {
+                    text: Some(secret.masked),
+                    sealed: Some(seal(t).map_err(|e| eprintln!("[atoll] secret not kept: {e}")).ok()?),
+                    secret: Some(secret.label),
+                    expires_at: (s.secret_expiry_min > 0).then(|| now_ms() + s.secret_expiry_min as u64 * 60_000),
+                    ..base
+                }),
+                None => Some(Clip { text: Some(t.clone()), ..base }),
+            }
         }
         Content::Text(_) => None,
         Content::Files(files) => {
@@ -216,12 +368,20 @@ fn on_copy(app: &AppHandle, content: Content, source: Option<String>) {
         Content::Files(_) => s.clipboard.files,
         Content::Image(_) => s.clipboard.images,
     };
+    let mut secret = false;
     if s.modules.clipboard && keep_kind && !s.clipboard.paused {
-        if let Some(clip) = to_clip(&content, source, s.clipboard.encrypt) {
-            record(app, clip);
+        if let Some(clip) = to_clip(&content, source, &s.clipboard) {
+            secret = clip.secret.is_some();
+            let top = record(app, clip);
+            if top.kind == "image" && s.clipboard.ocr {
+                recognise_later(app, &top);
+            }
         }
+    } else if let (Content::Text(t), true) = (&content, s.clipboard.detect_secrets) {
+        secret = crate::clipintel::find_secret(t).is_some();
     }
-    if s.modules.whiteboard && s.whiteboard.auto_add_copies {
+    // Secrets never go onto the whiteboard, where they would sit unmasked.
+    if s.modules.whiteboard && s.whiteboard.auto_add_copies && !secret {
         crate::board::add_content(app, &content, None);
     }
 }
@@ -229,18 +389,21 @@ fn on_copy(app: &AppHandle, content: Content, source: Option<String>) {
 /// Something dropped on the clipboard tab: put it on the clipboard and at the
 /// top of the history (even while recording is paused: you asked for it).
 pub fn add(app: &AppHandle, content: &Content) -> Result<(), String> {
-    let encrypt = app.state::<AppState>().settings.lock().unwrap().clipboard.encrypt;
-    let clip = to_clip(content, Some("Dropped on Atoll".into()), encrypt).ok_or("That is too big to keep in the clipboard history.")?;
+    let s = app.state::<AppState>().settings.lock().unwrap().clipboard.clone();
+    let clip = to_clip(content, Some("Dropped on Atoll".into()), &s).ok_or("That is too big to keep in the clipboard history.")?;
     winclip::write(content)?;
-    record(app, clip);
+    let top = record(app, clip);
+    if top.kind == "image" && s.ocr {
+        recognise_later(app, &top);
+    }
     Ok(())
 }
 
-/// A history item as clipboard content.
+/// A history item as clipboard content (secrets unsealed).
 pub fn content_of(app: &AppHandle, id: &str) -> Result<Content, String> {
-    let clip = list(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
+    let clip = all(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
     Ok(match clip.kind.as_str() {
-        "text" => Content::Text(clip.text.unwrap_or_default()),
+        "text" => Content::Text(real_text(&clip)?),
         "files" => Content::Files(clip.files),
         _ => media::image_content(std::path::Path::new(clip.image.as_deref().unwrap_or("")))?,
     })
@@ -249,9 +412,9 @@ pub fn content_of(app: &AppHandle, id: &str) -> Result<Content, String> {
 /// Drag a history item out of the island: text as text, files as files,
 /// images as a PNG file.
 pub fn drag(app: &AppHandle, id: &str) -> Result<(), String> {
-    let clip = list(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
+    let clip = all(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
     match clip.kind.as_str() {
-        "text" => crate::dnd::drag_text(app, clip.text.unwrap_or_default()),
+        "text" => crate::dnd::drag_text(app, real_text(&clip)?),
         "files" => media::drag_files(app, clip.files.iter().map(PathBuf::from).collect(), None),
         _ => {
             let image = std::path::Path::new(clip.image.as_deref().unwrap_or(""));
@@ -264,13 +427,16 @@ pub fn drag(app: &AppHandle, id: &str) -> Result<(), String> {
 
 /// Copy a history item back to the clipboard (moves it to the top).
 pub fn use_item(app: &AppHandle, id: &str, paste: bool) -> Result<(), String> {
-    let clip = list(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
+    let clip = all(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
     let content = match clip.kind.as_str() {
-        "text" => Content::Text(clip.text.clone().unwrap_or_default()),
+        "text" => Content::Text(real_text(&clip)?),
         "files" => Content::Files(clip.files.clone()),
         _ => media::image_content(std::path::Path::new(clip.image.as_deref().unwrap_or("")))?,
     };
-    winclip::write(&content)?;
+    match (&content, clip.secret.is_some()) {
+        (Content::Text(t), true) => winclip::write_secret(t)?,
+        _ => winclip::write(&content)?,
+    }
     {
         let state = app.state::<ClipboardState>();
         let mut items = state.items.lock().unwrap();
@@ -285,12 +451,22 @@ pub fn use_item(app: &AppHandle, id: &str, paste: bool) -> Result<(), String> {
     if paste { crate::paste::paste_into_previous() } else { Ok(()) }
 }
 
+/// Pinning a secret keeps it; unpinning starts its expiry again.
 pub fn set_pinned(app: &AppHandle, id: &str, pinned: bool) {
+    let minutes = app.state::<AppState>().settings.lock().unwrap().clipboard.secret_expiry_min as u64;
+    let mut restart = None;
     if let Some(c) = app.state::<ClipboardState>().items.lock().unwrap().iter_mut().find(|c| c.id == id) {
         c.pinned = pinned;
+        if c.secret.is_some() {
+            c.expires_at = (!pinned && minutes > 0).then(|| now_ms() + minutes * 60_000);
+            restart = c.expires_at;
+        }
     }
     save(app);
     emit(app);
+    if let Some(at) = restart {
+        schedule_expiry(app, id.to_string(), at);
+    }
 }
 
 pub fn delete(app: &AppHandle, id: &str) {
@@ -337,7 +513,7 @@ pub fn clear_everything(app: &AppHandle) {
 /// A thumbnail as a data URL (encrypted thumbnails can't be served as files).
 pub fn thumb_data(app: &AppHandle, id: &str) -> Result<String, String> {
     use base64::Engine;
-    let clip = list(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
+    let clip = all(app).into_iter().find(|c| c.id == id).ok_or("That item is gone.")?;
     let path = clip.thumb.ok_or("No picture.")?;
     let bytes = crate::crypt::read(std::path::Path::new(&path))?;
     Ok(format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))

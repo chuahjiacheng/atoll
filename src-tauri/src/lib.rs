@@ -547,6 +547,13 @@ fn open_windows_dnd(app: AppHandle) -> Result<(), String> {
 
 // ----- clipboard history -----
 
+// ---- search-clipboard: begin ----
+#[tauri::command]
+fn clipboard_transform(app: AppHandle, id: String, op: String, paste: bool) -> Result<(), String> {
+    clipboard::transform(&app, &id, &op, paste)
+}
+// ---- search-clipboard: end ----
+
 #[tauri::command]
 fn clipboard_list(app: AppHandle) -> Vec<clipboard::Clip> {
     clipboard::list(&app)
@@ -1080,6 +1087,9 @@ pub fn run() {
             claude_status,
             open_folder,
             clipboard_thumb,
+            // ---- search-clipboard: begin ----
+            clipboard_transform,
+            // ---- search-clipboard: end ----
             pause_hotkeys,
             #[cfg(debug_assertions)]
             debug_renew_sign_in,

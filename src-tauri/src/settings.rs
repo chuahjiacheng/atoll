@@ -164,11 +164,31 @@ pub struct ClipboardSettings {
     pub skip_private: bool,
     /// Store history and images encrypted with Windows DPAPI (your account only).
     pub encrypt: bool,
+    // ---- search-clipboard: begin ----
+    /// Mask API keys, tokens, passwords and card numbers; keep the real value DPAPI-encrypted.
+    pub detect_secrets: bool,
+    /// Forget items holding a secret after this many minutes (0 = never).
+    pub secret_expiry_min: u32,
+    /// Read the text in copied images (Windows OCR, on this PC only).
+    pub ocr: bool,
+    // ---- search-clipboard: end ----
 }
 
 impl Default for ClipboardSettings {
     fn default() -> Self {
-        ClipboardSettings { persist: false, max_items: 50, images: true, files: true, click_paste: true, paused: false, skip_private: true, encrypt: false }
+        ClipboardSettings {
+            persist: false,
+            max_items: 50,
+            images: true,
+            files: true,
+            click_paste: true,
+            paused: false,
+            skip_private: true,
+            encrypt: false,
+            detect_secrets: true,
+            secret_expiry_min: 5,
+            ocr: true,
+        }
     }
 }
 
@@ -661,6 +681,7 @@ impl Settings {
         // Spotify client IDs are 32 hex chars; keep only safe characters.
         self.spotify.client_id = self.spotify.client_id.trim().chars().filter(|c| c.is_ascii_alphanumeric()).take(64).collect();
         self.clipboard.max_items = self.clipboard.max_items.clamp(10, 200);
+        self.clipboard.secret_expiry_min = self.clipboard.secret_expiry_min.min(24 * 60); // search-clipboard
         if self.spotify.callback_port < 1024 {
             self.spotify.callback_port = DEFAULT_CALLBACK_PORT;
         }
