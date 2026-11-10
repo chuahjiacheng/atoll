@@ -1,0 +1,79 @@
+/* Island window base. All values come from styles/tokens.css. */
+@import "./styles/tokens.css";
+@import "./styles/controls.css";
+@import "./styles/glass.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/600.css";
+
+html,
+body,
+#app {
+  overscroll-behavior: none;
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+body {
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh);
+  color: var(--c-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--c-accent);
+  outline-offset: var(--focus-offset);
+}
+
+::selection {
+  background: var(--c-selection);
+  color: var(--c-ink);
+}
+
+input,
+textarea {
+  caret-color: var(--c-accent);
+  user-select: text;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--c-muted);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-track) transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Settings → Mascot → Show Pip off */
+:root[data-mascot="off"] svg.pip {
+  display: none;
+}

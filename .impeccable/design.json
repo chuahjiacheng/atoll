@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-06T21:30:00+08:00",
+  "title": "Design System: Atoll",
+  "extensions": {
+    "colorMeta": {
+      "periwinkle": { "role": "primary", "displayName": "Periwinkle", "canonical": "#8FA3FF", "tonalRamp": ["#1B2150", "#28327A", "#3A55D6", "#5873EC", "#8FA3FF", "#A9B8FF", "#C9D3FF", "#E8ECFF"] },
+      "signal-amber": { "role": "secondary", "displayName": "Signal Amber", "canonical": "#F5B947", "tonalRamp": ["#3A2400", "#5E3A00", "#8A4B00", "#B86E0A", "#E39A2A", "#F5B947", "#F9D28A", "#FCEBC9"] },
+      "signal-green": { "role": "secondary", "displayName": "Signal Green", "canonical": "#45D68E", "tonalRamp": ["#04301A", "#08492A", "#0B6638", "#168A4F", "#2DB572", "#45D68E", "#86E6B5", "#C9F4DD"] },
+      "signal-coral": { "role": "secondary", "displayName": "Signal Coral", "canonical": "#FF7A7A", "tonalRamp": ["#4A0A0A", "#741414", "#A82020", "#D23A3A", "#F25C5C", "#FF7A7A", "#FFAAAA", "#FFDADA"] },
+      "lagoon-ink": { "role": "neutral", "displayName": "Lagoon Ink", "canonical": "#F4F4F7" },
+      "mist": { "role": "neutral", "displayName": "Mist", "canonical": "#A9A9B5" },
+      "hull": { "role": "neutral", "displayName": "Hull", "canonical": "#101015", "tonalRamp": ["#0B0B0F", "#101015", "#18181F", "#2A2A33", "#33333D", "#3A3A46", "#7A7A86", "#A9A9B5"] },
+      "light-hull": { "role": "neutral", "displayName": "Light Hull", "canonical": "#FCFCFD" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Focus timer countdown only." },
+      "headline": { "displayName": "Headline", "purpose": "Settings page titles, player track title." },
+      "title": { "displayName": "Title", "purpose": "Peek titles, connection names." },
+      "body": { "displayName": "Body", "purpose": "Default text, buttons, fields, nav items." },
+      "body-small": { "displayName": "Body Small", "purpose": "Pill text, list rows, help text." },
+      "label": { "displayName": "Label", "purpose": "Status words, section headers, metadata." }
+    },
+    "shadows": [
+      { "name": "shell", "value": "0 16px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.10)", "purpose": "Island pill, panel and peeks at rest (dark)." },
+      { "name": "shell-light", "value": "0 16px 40px rgba(20,20,40,0.18), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 0 0 1px rgba(20,20,30,0.10)", "purpose": "Same, light theme." },
+      { "name": "status-glow", "value": "0 0 0 2px var(--signal), 0 0 0 3.5px var(--hull), 0 0 28px 4px color-mix(in srgb, var(--signal) 55%, transparent)", "purpose": "Added to the shell while busy, done, error or asking permission." },
+      { "name": "settings-window", "value": "0 0 0 1px rgba(255,255,255,0.12), 0 16px 48px rgba(0,0,0,0.5)", "purpose": "Settings window frame and dialogs." },
+      { "name": "toast", "value": "0 0 0 1px rgba(255,255,255,0.08), 0 8px 24px rgba(0,0,0,0.3)", "purpose": "The Saved toast in Settings." }
+    ],
+    "motion": [
+      { "name": "expand", "value": "280ms", "purpose": "Pill to panel." },
+      { "name": "peek-in", "value": "260ms", "purpose": "A peek dropping in." },
+      { "name": "collapse", "value": "200ms", "purpose": "Panel or peek back to the pill." },
+      { "name": "state-fast", "value": "160ms", "purpose": "Small state changes: hover, press, tab chip, switch knob." },
+      { "name": "state-slow", "value": "240ms", "purpose": "Larger state changes: pill width between idle/status/timer, glow in and out, module switch." },
+      { "name": "ease-settle", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Size and position changes; settles without overshoot (from the prototype)." },
+      { "name": "reduced", "value": "opacity 120ms linear", "purpose": "Replaces all movement when Reduce motion is on." },
+      { "name": "speed", "value": "50%–200%", "purpose": "User animation speed; durations are divided by it." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Island Pill (status)",
+      "kind": "custom",
+      "refersTo": "island-pill",
+      "description": "Collapsed island showing a busy agent.",
+      "html": "<div class=\"ds-pill\"><span class=\"ds-pip\"></span><span class=\"ds-word\">● Busy</span><span class=\"ds-text\">Editing island/peek.tsx</span><span class=\"ds-meta\">0:42</span></div>",
+      "css": ".ds-pill{display:flex;align-items:center;gap:8px;width:384px;height:40px;padding:0 16px 0 8px;border-radius:20px;background:rgba(16,16,21,0.85);backdrop-filter:blur(24px) saturate(140%);color:#F4F4F7;font:400 13px Inter,'Segoe UI',sans-serif;box-shadow:0 0 0 2px #F5B947,0 0 0 3.5px #101015,0 0 28px 4px rgba(245,185,71,0.55),0 16px 40px rgba(0,0,0,0.45)}.ds-pip{width:24px;height:24px;border-radius:50%;background:#8C9CFF}.ds-word{color:#F5B947;font-size:12px;font-weight:600}.ds-text{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ds-meta{color:#A9A9B5;font-size:12px;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action in a view (Allow, Start, Connect).",
+      "html": "<button class=\"ds-btn-primary\">Allow</button>",
+      "css": ".ds-btn-primary{height:44px;padding:0 16px;border:none;border-radius:12px;background:#8FA3FF;color:#0E0E12;font:600 14px Inter,'Segoe UI',sans-serif;cursor:pointer;transition:transform 160ms cubic-bezier(0.2,0.8,0.2,1)}.ds-btn-primary:hover{background-image:linear-gradient(rgba(255,255,255,0.07),rgba(255,255,255,0.07))}.ds-btn-primary:active{transform:scale(0.97)}.ds-btn-primary:focus-visible{outline:2px solid #8FA3FF;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Every other action (Deny, Reset, Clear).",
+      "html": "<button class=\"ds-btn-secondary\">Deny</button>",
+      "css": ".ds-btn-secondary{height:44px;padding:0 16px;border:none;border-radius:12px;background:#2A2A33;color:#F4F4F7;font:600 14px Inter,'Segoe UI',sans-serif;cursor:pointer}.ds-btn-secondary:hover{background-image:linear-gradient(rgba(255,255,255,0.07),rgba(255,255,255,0.07))}.ds-btn-secondary:active{transform:scale(0.97)}.ds-btn-secondary:focus-visible{outline:2px solid #8FA3FF;outline-offset:2px}"
+    },
+    {
+      "name": "Island Tabs",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Module tabs in the expanded island; only the active tab shows its label.",
+      "html": "<div class=\"ds-tabs\"><button class=\"ds-tab ds-on\">◆ Home</button><button class=\"ds-tab\">✦</button><button class=\"ds-tab\">♪</button></div>",
+      "css": ".ds-tabs{display:inline-flex;gap:4px;padding:2px;border-radius:20px}.ds-tab{height:36px;min-width:36px;border:none;border-radius:18px;background:transparent;color:#A9A9B5;font:600 13px Inter,'Segoe UI',sans-serif;cursor:pointer}.ds-tab.ds-on{background:#33333D;color:#F4F4F7;padding:0 16px 0 12px}.ds-tab:focus-visible{outline:2px solid #8FA3FF;outline-offset:2px}"
+    },
+    {
+      "name": "Settings Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Text and number fields in Settings.",
+      "html": "<input class=\"ds-field\" placeholder=\"Paste your client ID\">",
+      "css": ".ds-field{height:40px;width:248px;padding:0 12px;border-radius:12px;border:1px solid #7A7A86;background:#0B0B0F;color:#F4F4F7;font:400 14px Inter,'Segoe UI',sans-serif}.ds-field::placeholder{color:#A9A9B5}.ds-field:focus-visible{outline:2px solid #8FA3FF;outline-offset:2px}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Raised tile inside the expanded island (Home cards, list rows).",
+      "html": "<div class=\"ds-card\"><div class=\"ds-k\">Last copy</div><div>npm install --save-dev vitest</div></div>",
+      "css": ".ds-card{width:300px;padding:16px;border-radius:16px;background:rgba(255,255,255,0.07);color:#F4F4F7;font:400 13px Inter,'Segoe UI',sans-serif;display:flex;flex-direction:column;gap:8px}.ds-k{font-size:12px;color:#A9A9B5}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Lagoon",
+    "overview": "Atoll is a calm, sheltered pool that floats just below the top edge of the screen. Its surface is smoked glass, blurring whatever lies behind it. At rest it is a small, fully rounded pill with Pip the mascot and a single dot. When something happens, the water lights up: an amber, green or coral ring glows around the pill and one short line says what changed. When the user reaches for it, the pill grows smoothly into a rounded panel holding every module side by side.",
+    "keyCharacteristics": [
+      "Floating, fully rounded pill that grows into a 32 px-cornered panel; never attached to the screen edge (8 px gap from the top, from the prototype).",
+      "Smoked-glass surfaces with blur(24px) saturate(140%), a 1 px inner hairline and a top highlight.",
+      "Status shown by a coloured glow ring plus icon and word, never by colour alone.",
+      "Inter at only two weights (400, 600) and six sizes.",
+      "Pip appears in every collapsed state and reflects the agent's mood.",
+      "Dark and light themes, plus Follow Windows."
+    ],
+    "rules": [
+      { "name": "The Signal-Only Rule", "body": "Amber, green and coral appear only to report a real state change. Never use them as decoration, illustration colour or brand colour.", "section": "colors" },
+      { "name": "The Never-Colour-Alone Rule", "body": "Every status colour is paired with an icon and a word (\"Busy\", \"Done\", \"Error\").", "section": "colors" },
+      { "name": "The 4.5 Rule", "body": "Text and status words must reach 4.5:1 on the hull at the current opacity. A custom colour below that is refused with an explanation, never silently applied.", "section": "colors" },
+      { "name": "The Low-Tide Rule", "body": "Below 85 % opacity the island adds tinted plates behind headers, cards and buttons, and secondary text switches from Mist to Ink, so legibility never depends on the wallpaper. A collapsed pill that shows text never drops below 85 % opacity.", "section": "colors" },
+      { "name": "The Two-Weight Rule", "body": "Only 400 and 600 exist. No 500, 700, light or italic.", "section": "typography" },
+      { "name": "The Tabular Rule", "body": "Every number that changes over time (times, percentages, counts, sizes) uses tabular figures.", "section": "typography" },
+      { "name": "The Glow-Means-News Rule", "body": "A glow ring is a message. If nothing changed, nothing glows.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the island floating, fully rounded, horizontally centred and 8 px below the top edge.",
+      "Do pair every status colour with its icon and word.",
+      "Do keep text at 4.5:1 or better at every opacity, using the Low-Tide plates below 85 %.",
+      "Do use tabular figures for anything that counts or ticks.",
+      "Do use exactly the durations in the motion tokens, scaled by the user's animation speed, and replace movement with short fades when Reduce motion is on."
+    ],
+    "donts": [
+      "Don't attach the island to the screen edge or square off its top corners.",
+      "Don't use amber, green or coral for decoration.",
+      "Don't add weights other than 400 and 600, or fonts other than Inter.",
+      "Don't use bounce or elastic easing; motion settles, it does not overshoot.",
+      "Don't put glass inside glass: cards, rows and controls inside the shell stay flat."
+    ]
+  }
+}

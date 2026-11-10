@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atoll clickable prototype</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.fv:focus-visible{outline:2px solid #8FA3FF;outline-offset:2px}
+.lt .fv:focus-visible{outline-color:#3A55D6}
+</style>
+</helmet>
+<div class="{{themeClass}}" style="width: 1920px; height: 1080px; position: relative; font-family: Inter, 'Segoe UI', system-ui, sans-serif">
+  
+  <div style="position: absolute; left: 24px; bottom: 72px; width: 280px; padding: 16px; border-radius: 16px; background: #FFD84D; color: #141419; display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 13px; font-weight: 600">Prototype controls (not part of the app)</div>
+    <div style="font-size: 12px">Click the island to open it, use the tabs, and the chevron to collapse. Simulate events:</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{sims}}" as="s" hint-placeholder-count="8">
+        <button class="fv" onClick="{{s.go}}" style="height: 36px; margin: 0; border: none; border-radius: 10px; background: {{s.bg}}; color: {{s.color}}; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer">{{s.label}}</button>
+      </sc-for>
+    </div>
+  </div>
+<dc-import name="Scene" view="{{view}}" theme="{{theme}}" on-nav="{{nav}}" hint-size="1920px,1080px"></dc-import></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { view: 'idle' }; }
+  renderVals() {
+    const go = (v) => () => this.setState({ view: v });
+    const sims = [['Idle', 'idle'], ['Busy', 'busy'], ['Done', 'done'], ['Error', 'error'], ['Music', 'music'], ['Focus timer', 'timer'], ['Permission', 'perm'], ['Task finished', 'finished']].map(([label, v]) => ({
+      label, go: go(v), bg: this.state.view === v ? '#141419' : 'rgba(20,20,25,0.12)', color: this.state.view === v ? '#FFFFFF' : '#141419'
+    }));
+    const theme = this.props.theme ?? 'dark';
+    return {
+      view: this.state.view,
+      theme,
+      themeClass: theme === 'light' ? 'lt' : 'dk',
+      nav: (v) => this.setState({ view: v }),
+      sims
+    };
+  }
+}
+</script>
+</body>
+</html>

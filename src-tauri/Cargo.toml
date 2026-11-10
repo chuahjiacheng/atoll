@@ -1,0 +1,89 @@
+[package]
+name = "crest"
+version = "1.0.1"
+description = "Crest - a personal top-of-screen island for Claude Code"
+edition = "2021"
+
+[lib]
+name = "crest_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["net", "sync", "time", "macros", "rt-multi-thread"] }
+axum = "0.8"
+getrandom = "0.3"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tauri-winrt-notification = "0.8"
+tauri-plugin-opener = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+keyring = { version = "3", features = ["windows-native"] }
+sha2 = "0.10"
+base64 = "0.22"
+winreg = "0.56"
+windows = { version = "0.62", features = [
+  "Media_Control",
+  "Foundation",
+  "Storage_Streams",
+  # backdrop.rs: a rounded, anti-aliased blur of the desktop under the island
+  "UI",
+  "UI_Composition",
+  "UI_Composition_Desktop",
+  "System",
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_System_WinRT",
+  "Win32_System_WinRT_Composition",
+  "Win32_UI_HiDpi",
+  # liquid.rs: captures the desktop and draws refracting glass with a shader
+  "Graphics",
+  "Graphics_Capture",
+  "Graphics_DirectX",
+  "Graphics_DirectX_Direct3D11",
+  "Win32_Graphics_Direct3D",
+  "Win32_Graphics_Direct3D_Fxc",
+  "Win32_Graphics_Direct3D11",
+  "Win32_Graphics_Dxgi",
+  "Win32_Graphics_Dxgi_Common",
+  "Win32_Graphics_Gdi",
+  "Win32_System_WinRT_Direct3D11",
+  "Win32_System_WinRT_Graphics_Capture",
+  # dnd.rs: drop target for text/images/virtual files, plain-text drag out
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_SystemServices",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_WindowsAndMessaging",
+] }
+windows-numerics = "0.3"
+windows-core = "0.62"
+tauri-plugin-dialog = "2"
+drag = "2"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Security_Cryptography",
+  "Win32_System_Console",
+  "Win32_Media_Audio",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_System_LibraryLoader",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pip, the Atoll mascot</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<svg width="{{size}}" height="{{size}}" viewBox="0 0 64 64" role="img" aria-label="{{label}}" style="display: block; flex: none; overflow: visible">
+<g transform="{{tilt}}">
+<path d="M32 13c-2-5 1-9 7-10 0 5-3 9-7 10z" fill="{{sprout}}"></path>
+<path d="M32 12c14 0 26 9 26 25 0 12-11 17-26 17S6 49 6 37C6 21 18 12 32 12z" fill="{{body}}" stroke="{{edge}}" stroke-width="1.5"></path>
+<path d="M18 24c3-4 7-6 11-6.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="3" stroke-linecap="round"></path>
+<path d="{{cheeks}}" fill="#FF9DB0" fill-opacity="0.75"></path>
+<path d="{{eyesFill}}" fill="#171A26"></path>
+<path d="{{eyesStroke}}" fill="none" stroke="#171A26" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="{{mouth}}" fill="none" stroke="#171A26" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</g>
+<path d="{{extra}}" fill="none" stroke="{{extraColor}}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"mood":{"editor":"enum","options":["idle","focused","curious","happy","dizzy"],"default":"idle"},"size":{"editor":"int","default":64},"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":96,"height":96}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const mood = this.props.mood ?? 'idle';
+    const light = (this.props.theme ?? 'dark') === 'light';
+    const eye = (cx, cy, rx, ry) => 'M' + (cx - rx) + ' ' + cy + 'a' + rx + ' ' + ry + ' 0 1 0 ' + (2 * rx) + ' 0a' + rx + ' ' + ry + ' 0 1 0 ' + (-2 * rx) + ' 0';
+    const M = {
+      idle: { eyesFill: eye(24, 34, 3.4, 4.6) + eye(40, 34, 3.4, 4.6), eyesStroke: '', mouth: 'M29 43.5q3 2.5 6 0', cheeks: '', extra: '', tilt: 0 },
+      focused: { eyesFill: '', eyesStroke: 'M20 35h8M36 35h8M20 29.5l7 2M44 29.5l-7 2', mouth: 'M29.5 44h5', cheeks: '', extra: '', tilt: 0 },
+      curious: { eyesFill: eye(24, 33, 4.6, 5.6) + eye(40, 34, 3, 3.8), eyesStroke: '', mouth: 'M30 44.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0', cheeks: '', extra: 'M51 8.5a4 4 0 1 1 5 3.9c-1 .3-1.2 1-1.2 2.3M54.8 19v.3', tilt: -8 },
+      happy: { eyesFill: '', eyesStroke: 'M20 36q4-5.5 8 0M36 36q4-5.5 8 0', mouth: 'M26 41.5q6 6.5 12 0', cheeks: eye(18, 41.5, 3, 2.2) + eye(46, 41.5, 3, 2.2), extra: '', tilt: 0 },
+      dizzy: { eyesFill: '', eyesStroke: 'M24 34a1.5 1.5 0 1 1 1.5 1.5a3 3 0 1 1-3-3a4.4 4.4 0 1 1 4.4 4.4M40 34a1.5 1.5 0 1 1 1.5 1.5a3 3 0 1 1-3-3a4.4 4.4 0 1 1 4.4 4.4', mouth: 'M26 46q2-2.5 4 0t4 0t4 0', cheeks: '', extra: 'M11 10l1.4 2.8 2.8 1.4-2.8 1.4L11 18.4l-1.4-2.8-2.8-1.4 2.8-1.4zM54 6l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', tilt: 10 }
+    };
+    const m = M[mood] || M.idle;
+    const labels = { idle: 'Pip, idle', focused: 'Pip, focused', curious: 'Pip, curious', happy: 'Pip, happy', dizzy: 'Pip, dizzy' };
+    return {
+      size: this.props.size ?? 64,
+      label: labels[mood] || 'Pip',
+      body: light ? '#6A7DF2' : '#8C9CFF',
+      edge: light ? '#4152C9' : '#6F80F0',
+      sprout: light ? '#4152C9' : '#6F80F0',
+      extraColor: light ? '#3A55D6' : '#B8C4FF',
+      eyesFill: m.eyesFill,
+      eyesStroke: m.eyesStroke,
+      mouth: m.mouth,
+      cheeks: m.cheeks,
+      extra: m.extra,
+      tilt: 'rotate(' + m.tilt + ' 32 36)'
+    };
+  }
+}
+</script>
+</body>
+</html>

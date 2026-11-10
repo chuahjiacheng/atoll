@@ -1,0 +1,121 @@
+/*
+  glisse (Liquid Glass) mapped onto Atoll's tokens, so there is still one
+  set of variables. glisse declares its own values with :where() (zero
+  specificity); these win. Its few fixed values that clash with the design
+  (white text on filled buttons, green switches) are overridden here.
+*/
+:root {
+  --lg-foreground: var(--c-ink);
+  --lg-muted: var(--c-mist);
+  --lg-glass: var(--c-button);
+  --lg-glass-active: color-mix(in srgb, var(--c-button), var(--c-ink) 12%);
+  --lg-edge: var(--c-hairline);
+  --lg-drop: transparent;
+  /* the selection lens sits above the label copy, so it must be translucent */
+  --lg-selection: color-mix(in srgb, var(--c-ink) 14%, transparent);
+  --lg-lens: var(--c-hover);
+  --lg-segment-track: var(--c-surface-card);
+  --lg-segment-thumb: var(--c-tab);
+  --lg-segment-label: var(--c-ink);
+  --lg-surface: var(--c-card);
+  --lg-surface-edge: var(--c-line);
+  --lg-highlight: var(--c-hover);
+  --lg-separator: var(--c-line);
+  --lg-destructive: var(--c-error);
+  --lg-track: var(--c-track);
+  --lg-rail: var(--c-track);
+  --lg-on: var(--c-accent);
+  --lg-fill: var(--c-accent);
+  --lg-ring: var(--c-accent);
+  --lg-ease: var(--ease-settle);
+  --lg-blur: var(--blur);
+}
+
+/* Filled buttons: text colour that passes 4.5:1 on the accent (glisse uses white). */
+:root .lg-button[data-variant="filled"] {
+  color: var(--c-accent-ink);
+}
+:root .lg-button.atoll-danger[data-variant="filled"] {
+  color: var(--c-err-ink);
+}
+/* Destructive glass buttons: the design's red outline. */
+:root .lg-button[data-destructive]:not([data-variant="filled"]) {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+:root .lg-button {
+  font-weight: var(--fw-strong);
+  font-family: var(--font);
+}
+:root .lg-button.atoll-grow {
+  width: 100%;
+}
+/* Text buttons follow the design's control shape (44 px, 12 px corners);
+   icon-only buttons stay round. */
+:root .lg-button:not([data-icon="only"]) {
+  height: var(--size-button);
+  border-radius: var(--r-control);
+}
+/* glisse trims the leading padding of icon + text buttons to 12 px, which
+   leaves the contents 2 px left of centre; the design pads both sides 16 px. */
+:root .lg-button[data-icon]:not([data-icon="only"]) {
+  padding-left: var(--sp-16);
+}
+/* Only two weights exist (DESIGN.md Two-Weight Rule); glisse uses 500 in places. */
+:root .lg-segmented :is(.lg-tab, .lg-tab-copy)[data-selected],
+:root .lg-tab-bar[data-icons] :is(.lg-tab, .lg-tab-copy) {
+  font-weight: var(--fw-strong);
+}
+
+/* Icon + text labels inside tabs and segments. */
+.atoll-lg-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-6);
+  min-width: 0;
+  max-width: 100%;
+}
+.atoll-lg-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* glisse centres a segment label by its capitals, from the label's baseline.
+   An icon + text label must take that baseline from its text: left to the
+   flex default it comes from the icon, and the words ride 2 px high next to
+   the plain labels beside them. The icon stays centred on the line. (The
+   island's tab bar turns the trim off and centres its own way: Tabs.svelte.) */
+.lg-segmented .lg-tab-text > .atoll-lg-label > .atoll-lg-text {
+  align-self: baseline;
+}
+
+/* The island body: glisse glass tinted with the hull at the user's opacity. */
+.shell-glass.lg-glass {
+  --lg-glass: rgba(var(--c-hull-rgb), var(--shell-alpha, var(--hull-alpha)));
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: none;
+}
+
+/* Performance: backdrop filters can't see the desktop through a transparent
+   window, and behind buttons there is only the solid panel, so their
+   refraction is invisible but costs a filter pass on every frame. Keep the
+   glass colour and lit rim; drop the filter. Tabs, segments, sliders and
+   switches keep theirs (their lens bends the labels under it, which you see). */
+:root .shell-glass.lg-glass,
+:root .lg-button.lg-glass,
+:root .lg-input.lg-glass {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Focus rings show for keyboard use only (glisse focuses tabs on click). */
+:root[data-input="pointer"] :is(.lg-tab, .lg-button, .lg-switch, .lg-menu-item):focus-visible {
+  outline: none;
+}
+
+/* Reduce motion: glisse's own transitions become instant. */
+[data-reduce-motion="true"] [class^="lg-"],
+[data-reduce-motion="true"] [class*=" lg-"] {
+  transition-duration: 0s !important;
+}

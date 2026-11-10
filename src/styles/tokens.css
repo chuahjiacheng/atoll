@@ -1,0 +1,401 @@
+/*
+  Atoll design tokens: the ONE place colours, type, radii, spacing, sizes,
+  shadows and motion are defined. Everything else uses var(--…).
+
+  Source: design/designtokens.md + the two prototypes in design/ (see DESIGN.md).
+  Values not in the token list come from the prototypes.
+
+  Theme: dark is the default; <html data-theme="light"> switches.
+  Settings-driven values (sizes, opacity, blur, chosen colours, speed) are
+  set at runtime by src/lib/theme.ts on top of these defaults.
+*/
+
+:root {
+  /* ---------- type ---------- */
+  --font: "Inter", "Segoe UI", system-ui, sans-serif;
+  --fw-regular: 400;
+  --fw-strong: 600;
+  --fs-label: 12px;
+  --fs-small: 13px;
+  --fs-body: 14px;
+  --fs-title: 16px;
+  --fs-headline: 20px;
+  --fs-display: 40px;
+  --lh: 1.4;
+  --lh-loose: 1.6;
+  --lh-tight: 1.3;
+  --lh-display: 1.1;
+
+  /* ---------- radii ---------- */
+  --r-pill: 9999px;
+  --r-panel: 32px;
+  --r-peek: 28px;
+  --r-card: 16px;
+  --r-control: 12px;
+  --r-tile: 10px;
+  --r-nav: 8px;
+  --r-keycap: 6px;
+
+  /* ---------- spacing ---------- */
+  --sp-2: 2px;
+  --sp-4: 4px;
+  --sp-6: 6px;
+  --sp-8: 8px;
+  --sp-10: 10px;
+  --sp-12: 12px;
+  --sp-16: 16px;
+  --sp-24: 24px;
+  --sp-32: 32px;
+  --sp-40: 40px;
+  --sp-48: 48px;
+  --sp-64: 64px;
+
+  /* ---------- sizes ---------- */
+  --size-pill-h: 40px;
+  --size-status-w: 384px;
+  --size-timer-w: 168px;
+  --size-peek-w: 440px;
+  --size-panel-w: 720px;
+  --size-panel-h: 440px;
+  --size-top-gap: 8px;
+  /* room kept above the island inside its window, for the glow */
+  --size-top-room: 32px;
+  /* where the island sits below the window top (set by theme.ts from Y position) */
+  --stage-top: 8px;
+  --size-button: 44px;
+  --size-control: 40px;
+  --size-tab: 36px;
+  /* widest a module tab gets in the glisse tab bar */
+  --size-tab-max: 104px;
+  --size-tile: 40px;
+  --size-row: 56px;
+  --size-icon-sm: 16px;
+  --size-icon: 20px;
+  --size-pip: 24px;
+  --size-pip-peek: 40px;
+  --size-pip-empty: 64px;
+  --size-art-sm: 48px;
+  --size-art-lg: 200px;
+  --size-play: 56px;
+  --size-device-w: 128px;
+  --size-agent-side: 216px;
+  --size-search: 200px;
+  --size-hint: 360px;
+  --size-drop: 240px;
+  --size-activity-row: 32px;
+  --size-verb: 64px;
+  --size-ring-sm: 56px;
+  --size-ring: 80px;
+  /* focus timer: the big ring in the Focus tab, and the small one in the pill */
+  --size-ring-focus: 200px;
+  --stroke-ring-focus: 12px;
+  --size-ring-pill: 24px;
+  --stroke-ring-pill: 3px;
+  --r-art: 20px;
+  --size-card-text: 170px;
+  --size-card-edit: 70px;
+
+  /* ---------- settings window (Settings.dc.html) ---------- */
+  --size-titlebar: 32px;
+  --size-caption: 46px;
+  /* 232 px in the prototype cut "Clipboard and whiteboard" off (it needs 175 px in 600) */
+  --size-sidebar: 256px;
+  --size-nav-item: 40px;
+  --size-nav-mark-w: 3px;
+  --size-nav-mark-h: 16px;
+  --size-main-max: 760px;
+  --size-row-tile: 36px;
+  --size-slider: 168px;
+  --size-number: 72px;
+  --size-unit: 40px;
+  --size-select: 220px;
+  --size-select-sm: 180px;
+  --size-text-field: 248px;
+  --size-key-field: 232px;
+  --size-keycap-w: 24px;
+  --size-keycap-h: 26px;
+  --size-swatch: 28px;
+  --size-preset-dot: 24px;
+  --size-hex-field: 120px;
+  --size-seg: 96px;
+  --size-seg-sm: 72px;
+  --size-seg-wide: 128px;
+  --size-badge: 28px;
+  --size-screen-w: 384px;
+  --size-screen-h: 216px;
+  --size-preview-h: 180px;
+  --size-mood-box: 144px;
+  --size-pip-xl: 96px;
+  --size-pip-outfit: 48px;
+  --size-pip-tile: 56px;
+  --size-outfit-w: 128px;
+  --size-outfit-h: 120px;
+  --size-dialog: 400px;
+  --size-toast: 40px;
+  --size-empty-tile: 48px;
+  --size-wb-empty: 120px;
+  --size-alert-sound: 140px;
+  --size-alert-volume: 148px;
+  --size-alert-slider: 100px;
+  --size-alert-pct: 36px;
+  --size-alert-notify: 92px;
+  --size-alert-row: 60px;
+  --size-state-word: 28px;
+  --size-help-max: 420px;
+  --r-window: 8px;
+  --r-mark: 2px;
+  --dashed: 1.5px;
+  /* island size presets (Standard is --size-status-w × --size-pill-h) */
+  --size-compact-w: 320px;
+  --size-compact-h: 36px;
+  --size-large-w: 448px;
+  --size-large-h: 48px;
+  /* the expanded preview is drawn at this fraction of its real size */
+  --preview-scale: 0.25;
+
+  /* ---------- motion ---------- */
+  --dur-expand: 280ms;
+  --dur-peek: 260ms;
+  --dur-collapse: 200ms;
+  --dur-fast: 160ms;
+  --dur-slow: 240ms;
+  --dur-reduced: 120ms;
+  /* a lyric line rolling into the pill from below while the old one leaves above */
+  --dur-lyric: 560ms;
+  /* how often time-based things (progress line, timers) refresh */
+  --dur-tick: 500ms;
+  /* the pointer can leave the island this long before it starts to close */
+  --dur-hover-grace: 150ms;
+  /* a paused track stays in the pill this long */
+  --dur-paused-hold: 300000ms;
+  /* one swing of an equaliser bar (high to low or back), on average */
+  --dur-eq: 300ms;
+  /* note autosave delay after the last keystroke */
+  --dur-note-save: 500ms;
+  /* Spotify seek is sent this long after the slider stops moving */
+  --dur-seek-commit: 350ms;
+  /* one turn of the busy arc */
+  --dur-spin: 1200ms;
+  /* half a cycle of Pip's music bob, and its height */
+  --dur-bob: 450ms;
+  --bob-height: 1.5px;
+  /* how long Pip stays dizzy after being poked */
+  --dur-dizzy: 2400ms;
+  /* how long a finished-task peek stays before tucking away */
+  --dur-peek-hold: 8000ms;
+  /* the "while you focused" digest stays longer: there is more to read */
+  --dur-digest-hold: 20000ms;
+  /* a distraction nudge shows in the pill this long */
+  --dur-nudge: 5000ms;
+  /* how long a "Done" stays in the pill */
+  --dur-done-hold: 60000ms;
+  /* Settings: "Saved" toast, an error toast, and the re-read after edits stop */
+  --dur-toast: 1800ms;
+  --dur-toast-error: 4000ms;
+  --dur-resync: 400ms;
+  --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --press-scale: 0.97;
+  /* a control that can't be used right now */
+  --alpha-disabled: 0.5;
+  /* user's animation speed (1 = 100 %), set by theme.ts */
+  --speed: 1;
+
+  /* ---------- glass ---------- */
+  --glass-saturate: 140%;
+  /* hovering raises the glass to at least this opacity (design: Appearance → Opacity) */
+  --hover-min-alpha: 0.92;
+  --hover-alpha: 0.92;
+  /* The panel can't blur the desktop (a transparent window only sees its own
+     page), so it never drops below this, or text behind would show through. */
+  --panel-min-alpha: 0.97;
+  --panel-alpha: 0.97;
+  --plate-alpha: 0;
+  --blur: 24px;
+  --hull-alpha: 0.85;
+  --pill-alpha: 0.85;
+
+  /* ---------- colour presets (the design's choices for accent and statuses) ---------- */
+  --preset-accent-peri: #8fa3ff;
+  --preset-accent-teal: #4fd1c5;
+  --preset-accent-orchid: #d199ff;
+  --preset-accent-coral: #ff9b7a;
+  --preset-busy-amber: #f5b947;
+  --preset-busy-orange: #ff9f5a;
+  --preset-done-green: #45d68e;
+  --preset-done-teal: #4fd1c5;
+  --preset-error-red: #ff7a7a;
+  --preset-error-pink: #ff7ab8;
+
+  /* Pip body tones: body / edge */
+  --pip-peri: #8c9cff;
+  --pip-peri-edge: #6f80f0;
+  --pip-mint: #7adbb8;
+  --pip-mint-edge: #4fb894;
+  --pip-peach: #ffb48c;
+  --pip-peach-edge: #e8906a;
+  --pip-lilac: #c9a8ff;
+  --pip-lilac-edge: #a783f0;
+  --pip-face: #171a26;
+  --pip-blush: #ff9db0;
+  --pip-shine: rgba(255, 255, 255, 0.45);
+  --pip-extra: #b8c4ff;
+
+  /* ---------- island colours (dark) ---------- */
+  --c-ink: #f4f4f7;
+  --c-mist: #a9a9b5;
+  --c-accent: var(--preset-accent-peri);
+  --c-accent-text: #a9b8ff;
+  --c-accent-ink: #0e0e12;
+  --c-busy: var(--preset-busy-amber);
+  --c-done: var(--preset-done-green);
+  --c-error: var(--preset-error-red);
+  --c-hull: #101015;
+  --c-hull-rgb: 16, 16, 21;
+  --c-raised: rgba(255, 255, 255, 0.07);
+  --c-track: rgba(255, 255, 255, 0.16);
+  --c-hairline: rgba(255, 255, 255, 0.1);
+  --c-highlight: rgba(255, 255, 255, 0.08);
+  --c-dash: rgba(255, 255, 255, 0.28);
+  --c-button: #2a2a33;
+  --c-tab: #33333d;
+  --c-hover: rgba(255, 255, 255, 0.07);
+  --c-select-tile: #2b3460;
+  --c-preset-on: #262b45;
+  --c-drop: rgba(0, 0, 0, 0.45);
+  --c-selection: rgba(143, 163, 255, 0.35);
+
+  /* ---------- settings window colours (dark) ---------- */
+  --c-win: #101015;
+  --c-side: #0b0b0f;
+  --c-card: #18181f;
+  --c-field: #0b0b0f;
+  --c-line: rgba(255, 255, 255, 0.08);
+  --c-ctrl: #7a7a86;
+  --c-ctrl-dis: #3a3a44;
+  --c-dis: #6e6e79;
+  --c-sel: rgba(255, 255, 255, 0.08);
+  --c-kbd: #2a2a33;
+  --c-desk: #1c1e2b;
+  --c-desk-win: #2a2d3d;
+  --c-desk-bar: #3a3e52;
+  --c-desk-block-a: #6a7df2;
+  --c-desk-block-b: #e58a5b;
+  --c-scrim: rgba(0, 0, 0, 0.55);
+  --c-frame: rgba(255, 255, 255, 0.12);
+  --c-ok: #45d68e;
+  --c-warn: #f5b947;
+  --c-err: #ff7a7a;
+  --c-err-ink: #0e0e12;
+  --c-caption-close: #c42b1c;
+  --c-caption-close-ink: #ffffff;
+
+  /* ---------- derived roles (Low-Tide rule: below 85 % opacity text gets plates) ---------- */
+  --c-muted: var(--c-mist);
+  --c-surface-card: var(--c-raised);
+  --c-surface-plate: transparent;
+  --c-surface-icon: var(--c-raised);
+
+  /* ---------- Agent tab: warm clay theme (Claude-inspired; original values, no logo) ---------- */
+  --clay: #e3896b;
+  --clay-soft: rgba(227, 137, 107, 0.1);
+  --clay-ink: #0e0e12;
+  --font-reading: Georgia, Cambria, "Times New Roman", serif;
+
+  /* ---------- shadows ---------- */
+  --shadow-shell: 0 16px 40px var(--c-drop), inset 0 1px 0 var(--c-highlight), inset 0 0 0 1px var(--c-hairline);
+  --shadow-preview: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-window: 0 0 0 1px var(--c-frame), 0 16px 48px rgba(0, 0, 0, 0.5);
+  --shadow-toast: 0 0 0 1px var(--c-line), 0 8px 24px rgba(0, 0, 0, 0.3);
+  --glow-spread: 2px;
+  --glow-gap: 3.5px;
+  --glow-blur: 28px;
+  --glow-size: 4px;
+  --glow-strength: 55%;
+
+  /* text on a custom accent: dark ink on light colours, white on dark ones */
+  --ink-on-light: #0e0e12;
+  --ink-on-dark: #ffffff;
+
+  /* ---------- focus ---------- */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+}
+
+:root[data-theme="light"] {
+  --preset-accent-peri: #3a55d6;
+  --preset-accent-teal: #0b6b66;
+  --preset-accent-orchid: #7b3fbf;
+  --preset-accent-coral: #a8431f;
+  --preset-busy-amber: #8a4b00;
+  --preset-busy-orange: #9a3f00;
+  --preset-done-green: #0b6638;
+  --preset-done-teal: #0b6b66;
+  --preset-error-red: #a82020;
+  --preset-error-pink: #a21659;
+
+  --pip-peri: #6a7df2;
+  --pip-peri-edge: #4152c9;
+  --pip-mint: #3fa883;
+  --pip-mint-edge: #257a5d;
+  --pip-peach: #e08a57;
+  --pip-peach-edge: #b0623a;
+  --pip-lilac: #9b72e6;
+  --pip-lilac-edge: #7550c2;
+  --pip-extra: #3a55d6;
+
+  --c-ink: #141419;
+  --c-mist: #55555f;
+  --c-accent-text: #3048c2;
+  --c-accent-ink: #ffffff;
+  --c-hull: #fcfcfd;
+  --c-hull-rgb: 252, 252, 253;
+  --c-raised: rgba(20, 20, 30, 0.05);
+  --c-track: rgba(20, 20, 30, 0.14);
+  --c-hairline: rgba(20, 20, 30, 0.1);
+  --c-highlight: rgba(255, 255, 255, 0.9);
+  --c-dash: rgba(20, 20, 30, 0.28);
+  --c-button: #e6e6ec;
+  --c-tab: #ffffff;
+  --c-hover: rgba(20, 20, 30, 0.06);
+  --c-select-tile: #dce3ff;
+  --c-preset-on: #eef1ff;
+  --c-drop: rgba(20, 20, 40, 0.18);
+  --c-selection: rgba(58, 85, 214, 0.25);
+
+  --c-win: #f4f4f6;
+  --c-side: #ececf0;
+  --c-card: #ffffff;
+  --c-field: #ffffff;
+  --c-line: #e4e4ea;
+  --c-ctrl: #84848e;
+  --c-ctrl-dis: #c9c9d1;
+  --c-dis: #9a9aa3;
+  --c-sel: rgba(20, 20, 30, 0.07);
+  --c-kbd: #ececf0;
+  --c-desk: #dde2ec;
+  --c-desk-win: #ffffff;
+  --c-desk-bar: #c9d0de;
+  --c-desk-block-a: #7c8cf0;
+  --c-desk-block-b: #f0a47c;
+  --c-scrim: rgba(20, 20, 30, 0.35);
+  --c-frame: rgba(20, 20, 30, 0.16);
+  --c-ok: #0b6638;
+  --c-warn: #8a4b00;
+  --c-err: #a82020;
+  --c-err-ink: #ffffff;
+
+  --clay: #b4532e;
+  --clay-soft: rgba(180, 83, 46, 0.08);
+  --clay-ink: #ffffff;
+
+  --shadow-preview: 0 8px 24px rgba(20, 20, 40, 0.18);
+  --shadow-window: 0 0 0 1px var(--c-frame), 0 16px 48px rgba(20, 20, 40, 0.18);
+  --shadow-toast: 0 0 0 1px var(--c-line), 0 8px 24px rgba(20, 20, 40, 0.18);
+}
+
+[data-low-tide="true"] {
+  --c-muted: var(--c-ink);
+  --c-surface-card: rgba(var(--c-hull-rgb), var(--plate-alpha));
+  --c-surface-plate: rgba(var(--c-hull-rgb), var(--plate-alpha));
+  --c-surface-icon: rgba(var(--c-hull-rgb), max(var(--plate-alpha), 0.6));
+}

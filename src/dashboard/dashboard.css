@@ -1,0 +1,310 @@
+/* Settings window (design: Settings.dc.html). Same tokens as the island. */
+@import "../styles/tokens.css";
+@import "../styles/controls.css";
+@import "../styles/glass.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/600.css";
+@import "lenis/dist/lenis.css";
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--c-win);
+  color: var(--c-ink);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+button:disabled {
+  cursor: default;
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--c-accent);
+  outline-offset: var(--focus-offset);
+}
+:root[data-input="pointer"] :focus-visible:not(input, textarea, select) {
+  outline: none;
+}
+
+::selection {
+  background: var(--c-selection);
+}
+
+input,
+textarea {
+  caret-color: var(--c-accent);
+  user-select: text;
+}
+
+input::placeholder {
+  color: var(--c-dis);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-ctrl-dis) transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- native fields in the design's shape (glisse has no select or number box) ---------- */
+.d-field {
+  box-sizing: border-box;
+  height: var(--size-control);
+  margin: 0;
+  padding: 0 var(--sp-12);
+  border-radius: var(--r-control);
+  border: 1px solid var(--c-ctrl);
+  background: var(--c-field);
+  color: var(--c-ink);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+.d-field:focus-visible {
+  outline: var(--focus-width) solid var(--c-accent);
+  outline-offset: 0;
+}
+.d-field[aria-invalid="true"] {
+  border: var(--focus-width) solid var(--c-err);
+}
+.d-field:disabled,
+.d-field[readonly] {
+  background: var(--c-win);
+  border-color: var(--c-ctrl-dis);
+  color: var(--c-dis);
+}
+.d-field[type="number"] {
+  width: var(--size-number);
+  padding: 0 var(--sp-6) 0 var(--sp-10);
+}
+.d-field::-webkit-inner-spin-button {
+  opacity: 0.5;
+}
+.d-select {
+  position: relative;
+  flex: none;
+  display: flex;
+}
+.d-select select {
+  appearance: none;
+  min-width: var(--size-select);
+  padding-right: var(--sp-40);
+  cursor: pointer;
+}
+.d-select select option {
+  background: var(--c-card);
+  color: var(--c-ink);
+}
+.d-select .chev {
+  position: absolute;
+  right: var(--sp-12);
+  top: 50%;
+  translate: 0 -50%;
+  display: flex;
+  pointer-events: none;
+  color: var(--c-muted);
+}
+
+/* ---------- page layout ---------- */
+.d-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-8);
+}
+.d-section > h2 {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+}
+.d-section > p {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--c-muted);
+}
+.d-card {
+  border-radius: var(--r-card);
+  background: var(--c-card);
+  box-shadow: 0 0 0 1px var(--c-line);
+}
+
+/* ---------- rows ---------- */
+.d-row {
+  box-sizing: border-box;
+  padding: var(--sp-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-12);
+}
+.d-row + .d-row {
+  border-top: 1px solid var(--c-line);
+}
+.d-row:first-child {
+  border-top-left-radius: var(--r-card);
+  border-top-right-radius: var(--r-card);
+}
+.d-row:last-child {
+  border-bottom-left-radius: var(--r-card);
+  border-bottom-right-radius: var(--r-card);
+}
+.d-line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-16);
+  min-height: var(--size-control);
+}
+.d-tile {
+  width: var(--size-row-tile);
+  height: var(--size-row-tile);
+  flex: none;
+  border-radius: var(--r-tile);
+  background: var(--c-sel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.d-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.d-label {
+  font-size: var(--fs-body);
+}
+.d-label.big {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+}
+.d-label.huge {
+  font-size: var(--fs-headline);
+  font-weight: var(--fw-strong);
+}
+.d-help {
+  font-size: var(--fs-small);
+  color: var(--c-muted);
+  max-width: var(--size-help-max);
+}
+.d-row[data-disabled="true"] :is(.d-label, .d-tile) {
+  color: var(--c-dis);
+}
+.d-meta {
+  flex: none;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-strong);
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+.d-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-8);
+  font-size: var(--fs-small);
+  color: var(--c-muted);
+}
+.d-note > :first-child {
+  flex: none;
+  display: flex;
+  margin-top: 1px;
+}
+.d-note.indent {
+  padding-left: calc(var(--size-row-tile) + var(--sp-16));
+}
+.d-note[data-tone="err"] {
+  color: var(--c-err);
+}
+.d-note[data-tone="ok"] {
+  color: var(--c-ok);
+}
+.d-note[data-tone="ink"] {
+  color: var(--c-ink);
+}
+.d-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-8);
+}
+
+/* ---------- badges ---------- */
+.d-badge {
+  flex: none;
+  box-sizing: border-box;
+  height: var(--size-badge);
+  padding: 0 var(--sp-10);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px currentColor;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-strong);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  white-space: nowrap;
+  color: var(--c-muted);
+}
+.d-badge[data-tone="ok"] {
+  color: var(--c-ok);
+}
+.d-badge[data-tone="warn"] {
+  color: var(--c-warn);
+}
+.d-badge[data-tone="err"] {
+  color: var(--c-err);
+}
+.d-badge[data-tone="ink"] {
+  color: var(--c-ink);
+}
+
+/* ---------- glisse in the Settings window: buttons sit on opaque cards ---------- */
+:root .d-main .lg-button.lg-glass {
+  --lg-glass: var(--c-button);
+}
+/* Segmented control (DESIGN.md): a 1 px outlined group whose selected chip is
+   periwinkle with a check. Segments share one width, sized by Seg.svelte to
+   the longest label so nothing is cut off. */
+:root .d-main .lg-segmented {
+  --lg-tab-width: var(--seg-w, var(--size-seg));
+  --lg-tab-height: var(--size-tab);
+  --lg-segment-track: transparent;
+  --lg-segment-thumb: var(--c-accent);
+  box-shadow: inset 0 0 0 1px var(--c-ctrl);
+}
+/* Ink on the chip; while the chip is lifted away (pressed or dragged) the
+   label is back on the dark track, so it goes back to the normal ink. */
+:root .d-main .lg-segmented:not([data-lifted]) .lg-tab[data-selected] {
+  color: var(--c-accent-ink);
+}
+:root .d-main .lg-slider {
+  width: var(--slider-w, var(--size-slider));
+}
+.d-dim {
+  opacity: 0.5;
+}

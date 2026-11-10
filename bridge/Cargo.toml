@@ -1,0 +1,13 @@
+[package]
+name = "crest-bridge"
+version = "0.1.0"
+description = "Tiny hook command: forwards Claude Code hook events to the Crest island"
+edition = "2021"
+
+[[bin]]
+name = "crest-bridge"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"
+ureq = { version = "2", default-features = false }

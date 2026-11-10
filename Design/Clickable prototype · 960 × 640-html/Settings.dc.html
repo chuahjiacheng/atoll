@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atoll Settings window</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./assets/e3d6992181d45519389716bb10dd3e50.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="th-{{eff}}" onPointerUp="{{endDrag}}" style="position: relative; box-sizing: border-box; width: 100%; min-width: 720px; height: {{h}}px; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: {{t.win}}; color: {{t.text}}; font-family: Inter, 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.4; box-shadow: 0 0 0 1px {{t.frame}}, {{t.shadow}}">
+
+<div style="height: 32px; flex: none; display: flex; align-items: center; background: {{t.side}}">
+  <div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 12px">
+    <dc-import name="Mascot" mood="idle" size="16" theme="{{eff}}" tone="{{tone}}" hint-size="16px,16px"></dc-import>
+    <span>Atoll Settings</span>
+  </div>
+  <button class="fv hv" aria-label="Minimise" style="width: 46px; height: 32px; margin: 0; padding: 0; border: none; background: transparent; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="min" size="16" hint-size="16px,16px"></dc-import></button>
+  <button class="fv hv" aria-label="Maximise" style="width: 46px; height: 32px; margin: 0; padding: 0; border: none; background: transparent; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="max" size="14" hint-size="14px,14px"></dc-import></button>
+  <button class="fv capx" aria-label="Close" style="width: 46px; height: 32px; margin: 0; padding: 0; border: none; background: transparent; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="x" size="16" hint-size="16px,16px"></dc-import></button>
+</div>
+
+<div style="flex: 1; min-height: 0; display: flex">
+  <nav aria-label="Settings pages" style="width: 232px; flex: none; box-sizing: border-box; padding: 8px; display: flex; flex-direction: column; gap: 2px; background: {{t.side}}; overflow-y: auto">
+    <sc-for list="{{nav}}" as="n" hint-placeholder-count="12">
+      <button class="fv hv" onClick="{{n.go}}" aria-current="{{n.current}}" style="position: relative; flex: none; box-sizing: border-box; height: 40px; margin: 0; padding: 0 12px 0 16px; border: none; border-radius: 8px; background: {{n.bg}}; color: {{t.text}}; font: inherit; font-size: 14px; font-weight: {{n.fw}}; text-align: left; display: flex; align-items: center; gap: 12px; cursor: pointer">
+        <span aria-hidden="true" style="position: absolute; left: 4px; top: 12px; width: 3px; height: 16px; border-radius: 2px; background: {{n.ind}}"></span>
+        <dc-import name="Icon" icon="{{n.icon}}" size="18" hint-size="18px,18px"></dc-import>
+        <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{n.title}}</span>
+      </button>
+    </sc-for>
+  </nav>
+
+  <main style="flex: 1; min-width: 0; overflow-y: auto; position: relative">
+    <div style="box-sizing: border-box; max-width: 760px; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 24px">
+
+      <div style="display: flex; align-items: flex-start; gap: 16px">
+        <div style="flex: 1; min-width: 0">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 600; line-height: 1.3">{{pg.title}}</h1>
+          <p style="margin: 4px 0 0; font-size: 13px; color: {{t.muted}}">{{pg.desc}}</p>
+        </div>
+        <sc-if value="{{pg.canReset}}" hint-placeholder-val="{{ true }}">
+          <button class="fv hv" onClick="{{resetBtn.click}}" style="flex: none; height: 44px; margin: 0; padding: 0 14px; border: none; border-radius: 12px; background: {{t.btn2}}; color: {{t.text}}; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap"><dc-import name="Icon" icon="reset" size="16" hint-size="16px,16px"></dc-import>Reset to defaults</button>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{pg.hasPv}}" hint-placeholder-val="{{ false }}">
+        <div style="position: sticky; top: 0; z-index: 2; margin: -8px -32px 0; padding: 8px 32px 8px; background: {{t.win}}">
+          <div style="border-radius: 16px; background: {{t.card}}; box-shadow: 0 0 0 1px {{t.line}}; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+              <span style="flex: 1; min-width: 100px; font-size: 14px; font-weight: 600">Live preview</span>
+              <div role="radiogroup" aria-label="Preview size" style="display: flex; flex: none; padding: 2px; gap: 2px; border-radius: 12px; border: 1px solid {{t.ctrl}}">
+                <sc-for list="{{pv.modeOpts}}" as="o" hint-placeholder-count="2">
+                  <button class="fv hv" role="radio" aria-checked="{{o.aria}}" onClick="{{o.pick}}" style="height: 36px; margin: 0; padding: 0 12px; border: none; border-radius: 10px; background: {{o.bg}}; color: {{o.fg}}; font: inherit; font-size: 13px; font-weight: {{o.fw}}; display: flex; align-items: center; gap: 6px; cursor: pointer"><sc-if value="{{o.selected}}" hint-placeholder-val="{{ false }}"><dc-import name="Icon" icon="check" size="14" hint-size="14px,14px"></dc-import></sc-if><span>{{o.label}}</span></button>
+                </sc-for>
+              </div>
+              <div role="radiogroup" aria-label="Preview status" style="display: flex; flex: none; padding: 2px; gap: 2px; border-radius: 12px; border: {{pv.statusBorder}}">
+                <sc-for list="{{pv.statusOpts}}" as="o" hint-placeholder-count="4">
+                  <button class="fv hv" role="radio" aria-checked="{{o.aria}}" onClick="{{o.pick}}" disabled="{{pv.statusDis}}" style="height: 36px; margin: 0; padding: 0 12px; border: none; border-radius: 10px; background: {{o.bg}}; color: {{o.fg}}; font: inherit; font-size: 13px; font-weight: {{o.fw}}; display: flex; align-items: center; gap: 6px; cursor: pointer"><sc-if value="{{o.selected}}" hint-placeholder-val="{{ false }}"><dc-import name="Icon" icon="check" size="14" hint-size="14px,14px"></dc-import></sc-if><span>{{o.label}}</span></button>
+                </sc-for>
+              </div>
+            </div>
+            <div role="img" aria-label="{{pv.aria}}" style="position: relative; height: 180px; border-radius: 12px; background: {{t.desk}}; overflow: hidden">
+              <span aria-hidden="true" style="position: absolute; left: 24px; top: 56px; width: 260px; height: 140px; border-radius: 8px; background: {{t.deskWin}}"></span>
+              <span aria-hidden="true" style="position: absolute; left: 40px; top: 76px; width: 140px; height: 8px; border-radius: 4px; background: {{t.deskBar}}"></span>
+              <span aria-hidden="true" style="position: absolute; left: 40px; top: 94px; width: 200px; height: 8px; border-radius: 4px; background: {{t.deskBar}}"></span>
+              <span aria-hidden="true" style="position: absolute; left: calc(50% - 170px); top: 12px; width: 150px; height: 44px; border-radius: 22px; background: {{t.blockA}}"></span>
+              <span aria-hidden="true" style="position: absolute; left: calc(50% + 60px); top: 4px; width: 80px; height: 80px; border-radius: 40px; background: {{t.blockB}}"></span>
+              <sc-if value="{{pv.collapsed}}" hint-placeholder-val="{{ true }}">
+                <div style="position: absolute; top: 16px; left: 50%; transform: translateX(-50%); box-sizing: border-box; width: {{pv.w}}px; height: {{pv.h}}px; border-radius: {{pv.r}}px; background: {{pv.bg}}; backdrop-filter: {{pv.blur}}; -webkit-backdrop-filter: {{pv.blur}}; box-shadow: {{pv.shadow}}; display: flex; align-items: center; gap: 8px; padding: 0 14px 0 8px; color: {{t.text}}; font-size: 13px; overflow: hidden; transition: {{pv.trans}}">
+                  <dc-import name="Mascot" mood="{{pv.mood}}" size="{{pv.ms}}" theme="{{eff}}" tone="{{tone}}" hint-size="24px,24px"></dc-import>
+                  <sc-if value="{{pv.idle}}" hint-placeholder-val="{{ false }}">
+                    <span style="flex: 1"></span>
+                    <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; flex: none; background: {{t.muted}}"></span>
+                  </sc-if>
+                  <sc-if value="{{pv.status}}" hint-placeholder-val="{{ true }}">
+                    <span style="display: flex; align-items: center; gap: 4px; flex: none; color: {{pv.c}}"><dc-import name="Icon" icon="{{pv.icon}}" size="16" hint-size="16px,16px"></dc-import><span style="font-size: 12px; font-weight: 600">{{pv.word}}</span></span>
+                    <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{pv.label}}</span>
+                    <span style="flex: none; font-size: 12px; color: {{t.muted}}; font-variant-numeric: tabular-nums">{{pv.meta}}</span>
+                  </sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{pv.expanded}}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); box-sizing: border-box; width: {{pv.ew}}px; height: {{pv.eh}}px; border-radius: {{pv.er}}px; background: {{pv.bg}}; backdrop-filter: {{pv.blur}}; -webkit-backdrop-filter: {{pv.blur}}; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); padding: 10px; display: flex; flex-direction: column; gap: 8px; transition: {{pv.trans}}">
+                  <div style="display: flex; gap: 4px">
+                    <sc-for list="{{pv.tabs}}" as="tb" hint-placeholder-count="6"><span style="width: 16px; height: 6px; border-radius: 3px; background: {{tb.c}}"></span></sc-for>
+                  </div>
+                  <div style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px">
+                    <span style="border-radius: 6px; background: {{t.sel}}"></span>
+                    <span style="border-radius: 6px; background: {{t.sel}}"></span>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+            <span style="font-size: 12px; color: {{t.muted}}; font-variant-numeric: tabular-nums">{{pv.caption}}</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-for list="{{pg.sections}}" as="sec" hint-placeholder-count="3">
+        <section aria-label="{{sec.aria}}" style="display: flex; flex-direction: column; gap: 8px">
+          <sc-if value="{{sec.hasTitle}}" hint-placeholder-val="{{ true }}"><h2 style="margin: 0; font-size: 14px; font-weight: 600">{{sec.title}}</h2></sc-if>
+          <sc-if value="{{sec.hasDesc}}" hint-placeholder-val="{{ false }}"><p style="margin: 0; font-size: 13px; color: {{t.muted}}">{{sec.desc}}</p></sc-if>
+          <div style="border-radius: 16px; background: {{t.card}}; box-shadow: 0 0 0 1px {{t.line}}">
+            <sc-for list="{{sec.rows}}" as="r" hint-placeholder-count="3">
+              <div onPointerEnter="{{r.enter}}" style="box-sizing: border-box; padding: 16px; border-top: {{r.sep}}; border-radius: {{r.rad}}; background: {{r.rowBg}}; box-shadow: {{r.rowShadow}}; display: flex; flex-direction: column; gap: 12px">
+
+                <sc-if value="{{r.k.line}}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; align-items: center; gap: 16px; min-height: 40px">
+                    <sc-if value="{{r.hasHandle}}" hint-placeholder-val="{{ false }}">
+                      <button class="fv hv" aria-label="{{r.handleLabel}}" onPointerDown="{{r.handleDown}}" onKeyDown="{{r.handleKey}}" style="width: 40px; height: 40px; flex: none; margin: 0 -12px 0 -8px; padding: 0; border: none; border-radius: 8px; background: transparent; color: {{t.muted}}; cursor: grab; touch-action: none; display: flex; align-items: center; justify-content: center"><dc-import name="Icon" icon="grip" size="18" hint-size="18px,18px"></dc-import></button>
+                    </sc-if>
+                    <sc-if value="{{r.hasIcon}}" hint-placeholder-val="{{ false }}">
+                      <span style="width: 36px; height: 36px; flex: none; border-radius: 10px; background: {{t.sel}}; color: {{r.labelColor}}; display: flex; align-items: center; justify-content: center"><dc-import name="Icon" icon="{{r.icon}}" size="18" hint-size="18px,18px"></dc-import></span>
+                    </sc-if>
+                    <sc-if value="{{r.hasMascot}}" hint-placeholder-val="{{ false }}">
+                      <span style="width: 56px; height: 56px; flex: none; border-radius: 16px; background: {{t.desk}}; display: flex; align-items: center; justify-content: center"><dc-import name="Mascot" mood="happy" size="40" theme="{{eff}}" tone="{{tone}}" hint-size="40px,40px"></dc-import></span>
+                    </sc-if>
+                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+                      <span style="font-size: {{r.labelSize}}px; font-weight: {{r.labelWeight}}; color: {{r.labelColor}}">{{r.label}}</span>
+                      <sc-if value="{{r.hasHelp}}" hint-placeholder-val="{{ true }}"><span style="font-size: 13px; color: {{t.muted}}">{{r.help}}</span></sc-if>
+                    </div>
+                    <sc-if value="{{r.hasMeta}}" hint-placeholder-val="{{ false }}"><span style="flex: none; font-size: 12px; font-weight: 600; color: {{t.muted}}; font-variant-numeric: tabular-nums">{{r.meta}}</span></sc-if>
+
+                    <sc-if value="{{r.k.badge}}" hint-placeholder-val="{{ false }}">
+                      <span style="flex: none; height: 28px; box-sizing: border-box; padding: 0 10px; border-radius: 14px; box-shadow: inset 0 0 0 1px {{r.badge.c}}; color: {{r.badge.c}}; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; white-space: nowrap"><dc-import name="Icon" icon="{{r.badge.icon}}" size="14" hint-size="14px,14px"></dc-import>{{r.badge.word}}</span>
+                    </sc-if>
+
+                    <sc-if value="{{r.k.sw}}" hint-placeholder-val="{{ false }}">
+                      <span style="flex: none; display: flex; align-items: center; gap: 4px">
+                        <span style="font-size: 13px; color: {{r.stateColor}}">{{r.stateWord}}</span>
+                        <button class="fv" role="switch" aria-checked="{{r.ariaOn}}" aria-label="{{r.swLabel}}" disabled="{{r.disabled}}" onClick="{{r.toggle}}" style="width: 52px; height: 40px; margin: 0; padding: 0; border: none; border-radius: 12px; background: transparent; cursor: {{r.swCursor}}; display: flex; align-items: center; justify-content: center">
+                          <span style="position: relative; box-sizing: border-box; width: 40px; height: 20px; border-radius: 10px; border: {{r.swBorder}}; background: {{r.swBg}}"><span style="position: absolute; top: 3px; left: {{r.knobX}}px; width: 12px; height: 12px; border-radius: 6px; background: {{r.knob}}"></span></span>
+                        </button>
+                      </span>
+                    </sc-if>
+
+                    <sc-if value="{{r.k.slider}}" hint-placeholder-val="{{ false }}">
+                      <span style="flex: none; display: flex; align-items: center; gap: 12px">
+                        <input class="rng fv" type="range" min="{{r.min}}" max="{{r.max}}" step="{{r.step}}" value="{{r.val}}" onChange="{{r.change}}" disabled="{{r.disabled}}" aria-label="{{r.label}}" style="width: 168px; background: {{r.fill}}">
+                        <input class="fv" type="number" min="{{r.min}}" max="{{r.max}}" step="{{r.step}}" value="{{r.raw}}" onChange="{{r.numChange}}" disabled="{{r.disabled}}" aria-label="{{r.numLabel}}" aria-invalid="{{r.invalid}}" style="box-sizing: border-box; width: 72px; height: 40px; padding: 0 6px 0 10px; border-radius: 12px; border: {{r.numBorder}}; background: {{t.field}}; color: {{r.labelColor}}; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums">
+                        <span style="width: 40px; font-size: 13px; color: {{t.muted}}">{{r.unit}}</span>
+                      </span>
+                    </sc-if>
+
+                    <sc-if value="{{r.k.lb}}" hint-placeholder-val="{{ false }}">
+                      <span style="flex: none; display: flex; align-items: center; gap: 8px; font-size: 13px; color: {{t.muted}}">
+                        <input class="fv" type="number" min="5" max="60" value="{{r.lbMin}}" onChange="{{r.lbMinChange}}" aria-label="Long break length in minutes" aria-invalid="{{r.invalid}}" style="box-sizing: border-box; width: 64px; height: 40px; padding: 0 6px 0 10px; border-radius: 12px; border: {{r.lbBorderA}}; background: {{t.field}}; color: {{t.text}}; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums">
+                        <span>min after every</span>
+                        <input class="fv" type="number" min="2" max="8" value="{{r.lbEvery}}" onChange="{{r.lbEveryChange}}" aria-label="Focus sessions before a long break" aria-invalid="{{r.invalid}}" style="box-sizing: border-box; width: 64px; height: 40px; padding: 0 6px 0 10px; border-radius: 12px; border: {{r.lbBorderB}}; background: {{t.field}}; color: {{t.text}}; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums">
+                        <span>sessions</span>
+                      </span>
+                    </sc-if>
+
+                    <sc-if value="{{r.k.seg}}" hint-placeholder-val="{{ false }}">
+                      <div role="radiogroup" aria-label="{{r.label}}" style="display: flex; flex: none; padding: 2px; gap: 2px; border-radius: 12px; border: {{r.segBorder}}">
+                        <sc-for list="{{r.opts}}" as="o" hint-placeholder-count="3">
+                          <button class="fv hv" role="radio" aria-checked="{{o.aria}}" onClick="{{o.pick}}" disabled="{{r.disabled}}" style="height: 36px; margin: 0; padding: 0 12px; border: none; border-radius: 10px; background: {{o.bg}}; color: {{o.fg}}; font: inherit; font-size: 13px; font-weight: {{o.fw}}; display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap"><sc-if value="{{o.selected}}" hint-placeholder-val="{{ false }}"><dc-import name="Icon" icon="check" size="14" hint-size="14px,14px"></dc-import></sc-if><span>{{o.label}}</span></button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{r.k.sel}}" hint-placeholder-val="{{ false }}">
+                      <span style="position: relative; flex: none; display: flex">
+                        <select class="fv" aria-label="{{r.label}}" value="{{r.value}}" onChange="{{r.change}}" disabled="{{r.disabled}}" style="appearance: none; -webkit-appearance: none; box-sizing: border-box; height: 40px; min-width: {{r.minW}}px; margin: 0; padding: 0 40px 0 12px; border-radius: 12px; border: 1px solid {{t.ctrl}}; background: {{t.field}}; color: {{t.text}}; font: inherit; font-size: 14px; cursor: pointer">
+                          <sc-for list="{{r.options}}" as="op" hint-placeholder-count="3"><option value="{{op.v}}">{{op.label}}</option></sc-for>
+                        </select>
+                        <span aria-hidden="true" style="position: absolute; right: 12px; top: 12px; pointer-events: none; color: {{t.muted}}; display: flex"><dc-import name="Icon" icon="chevronDown" size="16" hint-size="16px,16px"></dc-import></span>
+                      </span>
+                    </sc-if>
+
+                    <sc-if value="{{r.k.color}}" hint-placeholder-val="{{ false }}">
+                      <button class="fv hv" aria-expanded="{{r.ariaOpen}}" aria-label="{{r.colorAria}}" onClick="{{r.toggle}}" style="flex: none; box-sizing: border-box; height: 40px; margin: 0; padding: 0 10px 0 6px; border-radius: 12px; border: 1px solid {{t.ctrl}}; background: {{t.field}}; color: {{t.text}}; font: inherit; font-size: 13px; display: flex; align-items: center; gap: 8px; cursor: pointer">
+                        <span style="width: 28px; height: 28px; border-radius: 8px; background: {{r.swatch}}; box-shadow: inset 0 0 0 1px {{t.line}}"></span>
+                        <span style="min-width: 72px; text-align: left">{{r.name}}</span>
+                        <span style="color: {{t.muted}}; font-variant-numeric: tabular-nums">{{r.hex}}</span>
+                        <dc-import name="Icon" icon="{{r.chev}}" size="16" hint-size="16px,16px"></dc-import>
+                      </button>
+                    </sc-if>
+
+                    <sc-if value="{{r.k.text}}" hint-placeholder-val="{{ false }}">
+                      <input class="fv" type="text" value="{{r.value}}" onChange="{{r.change}}" placeholder="{{r.placeholder}}" readOnly="{{r.readOnly}}" aria-label="{{r.label}}" aria-invalid="{{r.invalid}}" style="flex: none; box-sizing: border-box; width: 248px; height: 40px; margin: 0; padding: 0 12px; border-radius: 12px; border: {{r.fieldBorder}}; background: {{r.fieldBg}}; color: {{t.text}}; font: inherit; font-size: 14px">
+                    </sc-if>
+
+                    <sc-if value="{{r.k.keys}}" hint-placeholder-val="{{ false }}">
+                      <span style="flex: none; display: flex; align-items: center; gap: 8px">
+                        <button class="fv hv" aria-label="{{r.kf.aria}}" aria-invalid="{{r.kf.invalid}}" onClick="{{r.kf.record}}" onKeyDown="{{r.kf.keydown}}" onBlur="{{r.kf.blur}}" style="box-sizing: border-box; width: 232px; height: 40px; margin: 0; padding: 0 10px 0 8px; border-radius: 12px; border: {{r.kf.border}}; background: {{t.field}}; color: {{t.text}}; font: inherit; display: flex; align-items: center; gap: 4px; cursor: pointer">
+                          <sc-if value="{{r.kf.recording}}" hint-placeholder-val="{{ false }}"><span style="font-size: 13px; color: {{t.accent}}">Press a key combination</span></sc-if>
+                          <sc-if value="{{r.kf.notRec}}" hint-placeholder-val="{{ true }}">
+                            <sc-for list="{{r.kf.caps}}" as="cap" hint-placeholder-count="3"><span style="box-sizing: border-box; min-width: 24px; height: 26px; padding: 0 8px; border-radius: 6px; background: {{t.kbd}}; box-shadow: inset 0 -1px 0 {{t.ctrl}}; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center">{{cap}}</span></sc-for>
+                          </sc-if>
+                          <span style="flex: 1"></span>
+                          <sc-if value="{{r.kf.conflict}}" hint-placeholder-val="{{ false }}"><span style="display: flex; color: {{t.err}}"><dc-import name="Icon" icon="alert" size="16" hint-size="16px,16px"></dc-import></span></sc-if>
+                        </button>
+                        <button class="fv hv" aria-label="{{r.kf.resetLabel}}" onClick="{{r.kf.reset}}" disabled="{{r.kf.isDefault}}" style="width: 40px; height: 40px; margin: 0; padding: 0; border: none; border-radius: 12px; background: transparent; color: {{r.kf.resetColor}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="reset" size="18" hint-size="18px,18px"></dc-import></button>
+                      </span>
+                    </sc-if>
+
+                    <sc-if value="{{r.k.swatches}}" hint-placeholder-val="{{ false }}">
+                      <div role="radiogroup" aria-label="{{r.label}}" style="flex: none; display: flex; gap: 8px">
+                        <sc-for list="{{r.sws}}" as="s" hint-placeholder-count="4">
+                          <button class="fv" role="radio" aria-checked="{{s.aria}}" aria-label="{{s.name}}" onClick="{{s.pick}}" style="width: 40px; height: 40px; margin: 0; padding: 0; border: none; border-radius: 20px; background: {{s.c}}; box-shadow: {{s.ring}}; color: #171A26; display: flex; align-items: center; justify-content: center; cursor: pointer"><sc-if value="{{s.selected}}" hint-placeholder-val="{{ false }}"><dc-import name="Icon" icon="check" size="18" hint-size="18px,18px"></dc-import></sc-if></button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+
+                    <sc-for list="{{r.buttons}}" as="b" hint-placeholder-count="0">
+                      <button class="fv hv" onClick="{{b.click}}" disabled="{{b.disabled}}" aria-label="{{b.aria}}" style="flex: none; box-sizing: border-box; height: {{b.h}}px; min-width: {{b.mw}}px; margin: 0; padding: 0 {{b.px}}px; border: none; border-radius: 12px; box-shadow: {{b.ring}}; background: {{b.bg}}; color: {{b.fg}}; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; white-space: nowrap"><sc-if value="{{b.hasIcon}}" hint-placeholder-val="{{ false }}"><dc-import name="Icon" icon="{{b.icon}}" size="16" hint-size="16px,16px"></dc-import></sc-if><sc-if value="{{b.hasLabel}}" hint-placeholder-val="{{ true }}"><span>{{b.label}}</span></sc-if></button>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.open}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: 12px; background: {{t.win}}; box-shadow: inset 0 0 0 1px {{t.line}}">
+                    <div role="radiogroup" aria-label="{{r.presetAria}}" style="display: flex; flex-wrap: wrap; gap: 8px">
+                      <sc-for list="{{r.presets}}" as="pr" hint-placeholder-count="4">
+                        <button class="fv hv" role="radio" aria-checked="{{pr.aria}}" onClick="{{pr.pick}}" style="box-sizing: border-box; height: 44px; margin: 0; padding: 0 12px 0 8px; border-radius: 12px; border: {{pr.border}}; background: {{t.card}}; color: {{t.text}}; font: inherit; font-size: 13px; display: flex; align-items: center; gap: 8px; cursor: pointer">
+                          <span style="width: 24px; height: 24px; border-radius: 12px; background: {{pr.c}}; color: {{pr.ink}}; display: flex; align-items: center; justify-content: center"><sc-if value="{{pr.selected}}" hint-placeholder-val="{{ false }}"><dc-import name="Icon" icon="check" size="14" hint-size="14px,14px"></dc-import></sc-if></span>
+                          <span>{{pr.name}}</span>
+                        </button>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+                      <label for="{{r.cid}}" style="font-size: 13px; color: {{t.muted}}">Custom</label>
+                      <input id="{{r.cid}}" class="fv" type="text" value="{{r.custom}}" onChange="{{r.customChange}}" placeholder="#RRGGBB" aria-invalid="{{r.invalid}}" style="box-sizing: border-box; width: 120px; height: 40px; margin: 0; padding: 0 10px; border-radius: 12px; border: {{r.customBorder}}; background: {{t.field}}; color: {{t.text}}; font: inherit; font-size: 14px">
+                      <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: {{r.ratioColor}}"><dc-import name="Icon" icon="{{r.ratioIcon}}" size="16" hint-size="16px,16px"></dc-import><span>{{r.ratioText}}</span></span>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.k.mon}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+                    <div style="position: relative; width: 384px; height: 216px; flex: none; box-sizing: border-box; border-radius: 8px; background: {{t.desk}}; box-shadow: inset 0 0 0 1px {{t.ctrl}}">
+                      <span aria-hidden="true" style="position: absolute; left: 3px; right: 3px; top: 3px; bottom: 13px; border: 1px dashed {{t.ctrl}}; border-radius: 4px; opacity: 0.6"></span>
+                      <span aria-hidden="true" style="position: absolute; left: 1px; right: 1px; bottom: 1px; height: 10px; border-radius: 0 0 7px 7px; background: {{t.deskBar}}"></span>
+                      <sc-if value="{{r.mon.centred}}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="position: absolute; left: 191px; top: 0; bottom: 11px; border-left: 1px dashed {{t.accent}}"></span></sc-if>
+                      <button class="fv" aria-label="{{r.mon.aria}}" onPointerDown="{{r.mon.down}}" onPointerMove="{{r.mon.move}}" onPointerUp="{{r.mon.up}}" onKeyDown="{{r.mon.key}}" style="position: absolute; left: {{r.mon.bx}}px; top: {{r.mon.by}}px; width: {{r.mon.bw}}px; height: 28px; margin: 0; padding: 0; border: none; border-radius: 8px; background: transparent; cursor: grab; touch-action: none; display: flex; align-items: center; justify-content: center">
+                        <span style="width: {{r.mon.pw}}px; height: {{r.mon.ph}}px; border-radius: {{r.mon.pr}}px; background: {{t.surfHex}}; box-shadow: 0 0 0 2px {{t.accent}}"></span>
+                      </button>
+                    </div>
+                    <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 6px">
+                      <span style="font-size: 14px">Island position</span>
+                      <span style="font-size: 13px; color: {{t.muted}}">Drag the island on the screen, or select it and use the arrow keys. Hold Shift for bigger steps. It keeps 16 px from every edge.</span>
+                      <span style="font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 6px">{{r.mon.hText}}</span>
+                      <span style="font-size: 13px; font-variant-numeric: tabular-nums">{{r.mon.vText}}</span>
+                      <button class="fv hv" onClick="{{r.mon.centre}}" disabled="{{r.mon.centred}}" style="align-self: flex-start; margin: 8px 0 0; height: 44px; padding: 0 16px; border: none; border-radius: 12px; background: {{t.btn2}}; color: {{r.mon.centreFg}}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Centre horizontally</button>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.k.mp}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap">
+                    <div style="width: 144px; height: 144px; flex: none; border-radius: 16px; background: {{t.desk}}; display: flex; align-items: center; justify-content: center">
+                      <dc-import name="Mascot" mood="{{r.mood}}" size="96" theme="{{eff}}" tone="{{tone}}" hint-size="96px,96px"></dc-import>
+                    </div>
+                    <div style="flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 4px">
+                      <span style="font-size: 14px">Preview mood</span>
+                      <span style="font-size: 13px; color: {{t.muted}}">Shows how Pip looks in each mood. This is a preview only and is not saved.</span>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.k.segBelow}}" hint-placeholder-val="{{ false }}">
+                  <div role="radiogroup" aria-label="{{r.label}}" style="align-self: flex-start; display: flex; flex-wrap: wrap; padding: 2px; gap: 2px; border-radius: 12px; border: {{r.segBorder}}">
+                    <sc-for list="{{r.opts}}" as="o" hint-placeholder-count="5">
+                      <button class="fv hv" role="radio" aria-checked="{{o.aria}}" onClick="{{o.pick}}" style="height: 36px; margin: 0; padding: 0 12px; border: none; border-radius: 10px; background: {{o.bg}}; color: {{o.fg}}; font: inherit; font-size: 13px; font-weight: {{o.fw}}; display: flex; align-items: center; gap: 6px; cursor: pointer"><sc-if value="{{o.selected}}" hint-placeholder-val="{{ false }}"><dc-import name="Icon" icon="check" size="14" hint-size="14px,14px"></dc-import></sc-if><span>{{o.label}}</span></button>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.k.outfit}}" hint-placeholder-val="{{ false }}">
+                  <div role="radiogroup" aria-label="Outfit" style="display: flex; gap: 12px; flex-wrap: wrap">
+                    <button class="fv" role="radio" aria-checked="true" style="box-sizing: border-box; width: 128px; height: 120px; margin: 0; padding: 8px; border: none; border-radius: 16px; background: {{t.desk}}; box-shadow: 0 0 0 2px {{t.accent}}; color: {{t.text}}; font: inherit; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer"><dc-import name="Mascot" mood="idle" size="48" theme="{{eff}}" tone="{{tone}}" hint-size="48px,48px"></dc-import><span>None</span></button>
+                    <button class="fv" role="radio" aria-checked="false" disabled="{{ true }}" style="box-sizing: border-box; width: 128px; height: 120px; margin: 0; padding: 12px; border-radius: 16px; border: 1.5px dashed {{t.ctrl}}; background: transparent; color: {{t.muted}}; font: inherit; font-size: 13px; display: flex; align-items: center; justify-content: center; text-align: center">Outfit to be designed</button>
+                    <button class="fv" role="radio" aria-checked="false" disabled="{{ true }}" style="box-sizing: border-box; width: 128px; height: 120px; margin: 0; padding: 12px; border-radius: 16px; border: 1.5px dashed {{t.ctrl}}; background: transparent; color: {{t.muted}}; font: inherit; font-size: 13px; display: flex; align-items: center; justify-content: center; text-align: center">Outfit to be designed</button>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.k.wb}}" hint-placeholder-val="{{ false }}">
+                  <div style="min-height: 120px; box-sizing: border-box; padding: 24px; border-radius: 12px; border: 1.5px dashed {{t.ctrl}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center">
+                    <span style="display: flex; color: {{t.muted}}"><dc-import name="Icon" icon="whiteboard" size="24" hint-size="24px,24px"></dc-import></span>
+                    <span style="font-size: 14px; font-weight: 600">Whiteboard options to be confirmed</span>
+                    <span style="font-size: 13px; color: {{t.muted}}">No options are designed yet.</span>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.k.empty}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 16px; text-align: center">
+                    <span style="width: 48px; height: 48px; border-radius: 16px; background: {{t.sel}}; color: {{t.muted}}; display: flex; align-items: center; justify-content: center"><dc-import name="Icon" icon="clipboard" size="24" hint-size="24px,24px"></dc-import></span>
+                    <span style="font-size: 14px; font-weight: 600">No clipboard history</span>
+                    <span style="font-size: 13px; color: {{t.muted}}">{{r.help}}</span>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.k.alerts}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column">
+                    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 140px 148px 92px 40px; gap: 12px; align-items: center; padding-bottom: 8px; font-size: 12px; font-weight: 600; color: {{t.muted}}">
+                      <span>Event</span><span>Sound</span><span>Volume</span><span>Notification</span><span>Test</span>
+                    </div>
+                    <sc-for list="{{r.al}}" as="a" hint-placeholder-count="4">
+                      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 140px 148px 92px 40px; gap: 12px; align-items: center; min-height: 60px; border-top: 1px solid {{t.line}}">
+                        <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="display: flex; flex: none; color: {{a.c}}"><dc-import name="Icon" icon="{{a.icon}}" size="16" hint-size="16px,16px"></dc-import></span><span style="font-size: 14px">{{a.name}}</span></span>
+                        <span style="position: relative; display: flex">
+                          <select class="fv" aria-label="{{a.sLabel}}" value="{{a.s}}" onChange="{{a.sChange}}" style="appearance: none; -webkit-appearance: none; box-sizing: border-box; width: 140px; height: 40px; margin: 0; padding: 0 32px 0 10px; border-radius: 12px; border: 1px solid {{t.ctrl}}; background: {{t.field}}; color: {{t.text}}; font: inherit; font-size: 13px; cursor: pointer">
+                            <sc-for list="{{sounds}}" as="op" hint-placeholder-count="5"><option value="{{op.v}}">{{op.label}}</option></sc-for>
+                          </select>
+                          <span aria-hidden="true" style="position: absolute; right: 10px; top: 12px; pointer-events: none; color: {{t.muted}}; display: flex"><dc-import name="Icon" icon="chevronDown" size="16" hint-size="16px,16px"></dc-import></span>
+                        </span>
+                        <span style="display: flex; align-items: center; gap: 8px">
+                          <input class="rng fv" type="range" min="0" max="100" step="5" value="{{a.v}}" onChange="{{a.vChange}}" disabled="{{a.mute}}" aria-label="{{a.vLabel}}" style="width: 100px; background: {{a.fill}}">
+                          <span style="width: 36px; font-size: 12px; color: {{t.muted}}; font-variant-numeric: tabular-nums">{{a.vText}}</span>
+                        </span>
+                        <span style="display: flex; align-items: center; gap: 2px">
+                          <span style="width: 28px; font-size: 13px; color: {{t.muted}}">{{a.stateWord}}</span>
+                          <button class="fv" role="switch" aria-checked="{{a.ariaOn}}" aria-label="{{a.nLabel}}" onClick="{{a.toggle}}" style="width: 52px; height: 40px; margin: 0; padding: 0; border: none; border-radius: 12px; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                            <span style="position: relative; box-sizing: border-box; width: 40px; height: 20px; border-radius: 10px; border: {{a.swBorder}}; background: {{a.swBg}}"><span style="position: absolute; top: 3px; left: {{a.knobX}}px; width: 12px; height: 12px; border-radius: 6px; background: {{a.knob}}"></span></span>
+                          </button>
+                        </span>
+                        <button class="fv hv" aria-label="{{a.pLabel}}" onClick="{{a.preview}}" disabled="{{a.mute}}" style="width: 40px; height: 40px; margin: 0; padding: 0; border: none; border-radius: 12px; background: {{t.btn2}}; color: {{a.pColor}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="play" size="14" hint-size="14px,14px"></dc-import></button>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{r.hasNote}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: {{r.noteColor}}; padding-left: {{r.notePad}}px"><span style="display: flex; flex: none; margin-top: 1px"><dc-import name="Icon" icon="{{r.noteIcon}}" size="16" hint-size="16px,16px"></dc-import></span><span>{{r.note}}</span></div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </sc-for>
+    </div>
+  </main>
+</div>
+
+<div role="status" aria-live="polite" style="position: absolute; right: 24px; bottom: 24px; z-index: 5">
+  <sc-if value="{{toast.show}}" hint-placeholder-val="{{ false }}">
+    <div style="height: 40px; box-sizing: border-box; padding: 0 16px 0 12px; border-radius: 20px; background: {{t.card}}; box-shadow: 0 0 0 1px {{t.line}}, 0 8px 24px rgba(0, 0, 0, 0.3); display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600"><span style="display: flex; color: {{t.okC}}"><dc-import name="Icon" icon="check" size="16" hint-size="16px,16px"></dc-import></span><span>{{toast.msg}}</span></div>
+  </sc-if>
+</div>
+
+<sc-if value="{{dlg.show}}" hint-placeholder-val="{{ false }}">
+  <div style="position: absolute; inset: 0; z-index: 10; background: {{t.scrim}}; display: flex; align-items: center; justify-content: center; padding: 24px">
+    <div role="dialog" aria-modal="true" aria-labelledby="{{dlg.tid}}" aria-describedby="{{dlg.bid}}" style="box-sizing: border-box; width: 400px; max-width: 100%; padding: 24px; border-radius: 16px; background: {{t.card}}; box-shadow: 0 0 0 1px {{t.line}}, {{t.shadow}}; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: center; gap: 8px"><span style="display: flex; color: {{t.err}}"><dc-import name="Icon" icon="alert" size="20" hint-size="20px,20px"></dc-import></span><span id="{{dlg.tid}}" style="font-size: 16px; font-weight: 600">{{dlg.title}}</span></div>
+      <p id="{{dlg.bid}}" style="margin: 0; font-size: 14px; color: {{t.muted}}">{{dlg.body}}</p>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px">
+        <button class="fv hv" onClick="{{dlg.cancel}}" style="height: 44px; margin: 0; padding: 0 16px; border: none; border-radius: 12px; background: {{t.btn2}}; color: {{t.text}}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Cancel</button>
+        <button class="fv hv" onClick="{{dlg.confirm}}" style="height: 44px; margin: 0; padding: 0 16px; border: none; border-radius: 12px; background: {{t.err}}; color: {{t.errInk}}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">{{dlg.ok}}</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"page":{"editor":"enum","options":["general","appearance","modules","agents","spotify","clipboard","focus","alerts","hotkeys","mascot","privacy","about"],"default":"general"},"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"h":{"editor":"int","default":640},"spotify":{"editor":"enum","options":["off","connecting","connected"],"default":"off"},"claude":{"editor":"enum","options":["connected","notfound","error"],"default":"connected"},"conflict":{"editor":"boolean","default":false},"dialog":{"editor":"enum","options":["","reset"],"default":""},"toast":{"editor":"boolean","default":false},"$preview":{"width":960,"height":640}}'>
+class Component extends DCLogic {
+  componentWillUnmount() {
+    clearTimeout(this._toast);
+    (this._timers || []).forEach(function (x) { clearTimeout(x); });
+  }
+  later(fn, ms) { this._timers = this._timers || []; this._timers.push(setTimeout(fn, ms)); }
+  uid() { if (!this._uid) this._uid = 'st' + Math.random().toString(36).slice(2, 8); return this._uid; }
+  defKeys() {
+    return { toggle: ['Ctrl', 'Alt', 'Space'], settings: ['Ctrl', 'Alt', 'S'], clip: ['Ctrl', 'Alt', 'V'], note: ['Ctrl', 'Alt', 'N'], focus: ['Ctrl', 'Alt', 'F'], music: ['Ctrl', 'Alt', 'P'] };
+  }
+  base() {
+    const p = this.props;
+    const sp = p.spotify || 'off';
+    const keys = this.defKeys();
+    if (p.conflict) keys.note = ['Ctrl', 'Alt', 'V'];
+    return {
+      page: p.page || 'general', themeMode: 'follow',
+      startWin: true, tray: true, lang: 'en-GB', posX: 50, posY: 16, monitor: 'follow', hideFs: true,
+      preset: 'standard', iw: 384, ih: 40, ew: 720, eh: 440, round: 100, opacity: 85, blur: 24,
+      accent: 'peri', accentCustom: '', accentCustomOn: false,
+      busy: 'amber', busyCustom: '', busyCustomOn: false,
+      done: 'green', doneCustom: '', doneCustomOn: false,
+      error: 'red', errorCustom: '', errorCustomOn: false,
+      picker: '', speed: 100, reduce: false, pvMode: 'collapsed', pvStatus: 'busy',
+      modules: ['agent', 'spotify', 'media', 'clipboard', 'whiteboard', 'files', 'note', 'focus', 'mascot'],
+      modOn: { agent: true, spotify: true, media: true, clipboard: true, whiteboard: true, files: true, note: true, focus: true, mascot: true },
+      drag: '',
+      claudeOn: true, claudeStatus: p.claude || 'connected', claudeLive: true, claudeAsk: true, claudeSound: true, claudeRing: true, claudeTest: '',
+      codexOn: false, codexStatus: 'off', codexLive: true, codexAsk: true, codexSound: false, codexRing: true, codexTest: '',
+      spStatus: sp, clientId: sp === 'off' ? '' : '[YOUR CLIENT ID]',
+      clipLen: 50, clipPause: false, skipPw: true, encrypt: true, clipCount: 37,
+      focusMin: 25, breakMin: 5, longMin: 15, longEvery: 4, focusSound: 'chime', dnd: true,
+      alerts: { done: { s: 'chime', v: 70, n: true }, error: { s: 'bell', v: 80, n: true }, perm: { s: 'pop', v: 80, n: true }, timer: { s: 'chime', v: 60, n: false } },
+      keys: keys, recording: '',
+      mood: 'happy', tone: 'peri', reactMusic: true, reactPokes: true,
+      dialog: p.dialog || '', toastAt: p.toast ? 1 : 0, toastMsg: 'Saved'
+    };
+  }
+  S() {
+    const b = this.base();
+    const s = this.state || {};
+    Object.keys(s).forEach(function (k) { if (s[k] !== undefined) b[k] = s[k]; });
+    return b;
+  }
+  set(ch, msg) {
+    this.setState(Object.assign({}, ch, { toastAt: Date.now(), toastMsg: msg || 'Saved' }));
+    clearTimeout(this._toast);
+    this._toast = setTimeout(() => this.setState({ toastAt: 0 }), 1800);
+  }
+  test(id) {
+    this.setState({ [id + 'Test']: 'testing' });
+    this.later(() => { const s = this.S(); this.setState({ [id + 'Test']: s[id + 'Status'] === 'connected' ? 'ok' : 'fail' }); }, 1200);
+  }
+  connectAgent(id) {
+    const S = this.S();
+    if (S[id + 'On']) { this.set({ [id + 'On']: false, [id + 'Test']: '' }); return; }
+    const fixed = id === 'claude' && (this.props.claude === 'notfound' || this.props.claude === 'error') ? this.props.claude : '';
+    if (fixed) { this.set({ [id + 'On']: true, [id + 'Status']: fixed, [id + 'Test']: '' }); return; }
+    this.set({ [id + 'On']: true, [id + 'Status']: 'connecting', [id + 'Test']: '' });
+    this.later(() => this.setState({ [id + 'Status']: 'connected' }), 900);
+  }
+  recordKey(e, id) {
+    const S = this.S();
+    if (S.recording !== id || e.key === 'Tab') return;
+    if (e.key === 'Escape') { e.preventDefault(); this.setState({ recording: '' }); return; }
+    if (['Control', 'Alt', 'Shift', 'Meta', 'OS'].indexOf(e.key) >= 0) { e.preventDefault(); return; }
+    const m = [];
+    if (e.ctrlKey) m.push('Ctrl');
+    if (e.altKey) m.push('Alt');
+    if (e.shiftKey) m.push('Shift');
+    if (e.metaKey) m.push('Win');
+    if (!m.length) return;
+    e.preventDefault();
+    m.push(e.key === ' ' ? 'Space' : (e.key.length === 1 ? e.key.toUpperCase() : e.key));
+    this.set({ keys: Object.assign({}, S.keys, { [id]: m }), recording: '' });
+  }
+  renderVals() {
+    const S = this.S();
+    const p = this.props;
+    const uid = this.uid();
+    const eff = S.themeMode === 'follow' ? (p.theme === 'light' ? 'light' : 'dark') : S.themeMode;
+    const D = eff === 'dark';
+    const BASE = {
+      dark: { win: '#101015', side: '#0B0B0F', card: '#18181F', field: '#0B0B0F', line: 'rgba(255,255,255,0.08)', ctrl: '#7A7A86', ctrlDis: '#3A3A44', text: '#F4F4F7', muted: '#A9A9B5', dis: '#6E6E79', sel: 'rgba(255,255,255,0.08)', btn2: '#2A2A33', desk: '#1C1E2B', deskWin: '#2A2D3D', deskBar: '#3A3E52', surf: [16, 16, 21], surfHex: '#101015', scrim: 'rgba(0,0,0,0.55)', frame: 'rgba(255,255,255,0.12)', shadow: '0 16px 48px rgba(0,0,0,0.5)', okC: '#45D68E', warnC: '#F5B947', err: '#FF7A7A', errInk: '#0E0E12', kbd: '#2A2A33', blockA: '#6A7DF2', blockB: '#E58A5B' },
+      light: { win: '#F4F4F6', side: '#ECECF0', card: '#FFFFFF', field: '#FFFFFF', line: '#E4E4EA', ctrl: '#84848E', ctrlDis: '#C9C9D1', text: '#141419', muted: '#55555F', dis: '#9A9AA3', sel: 'rgba(20,20,30,0.07)', btn2: '#E6E6EC', desk: '#DDE2EC', deskWin: '#FFFFFF', deskBar: '#C9D0DE', surf: [252, 252, 253], surfHex: '#FCFCFD', scrim: 'rgba(20,20,30,0.35)', frame: 'rgba(20,20,30,0.16)', shadow: '0 16px 48px rgba(20,20,40,0.18)', okC: '#0B6638', warnC: '#8A4B00', err: '#A82020', errInk: '#FFFFFF', kbd: '#ECECF0', blockA: '#7C8CF0', blockB: '#F0A47C' }
+    };
+    const T = Object.assign({}, BASE[eff]);
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const lin = c => { c = c / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const lum = h => { const n = parseInt(h.slice(1), 16); return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255); };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const isHex = v => /^#[0-9a-fA-F]{6}$/.test(v || '');
+    const LISTS = {
+      accent: [{ id: 'peri', name: 'Periwinkle', dark: '#8FA3FF', light: '#3A55D6' }, { id: 'teal', name: 'Teal', dark: '#4FD1C5', light: '#0B6B66' }, { id: 'orchid', name: 'Orchid', dark: '#D199FF', light: '#7B3FBF' }, { id: 'coral', name: 'Coral', dark: '#FF9B7A', light: '#A8431F' }],
+      busy: [{ id: 'amber', name: 'Amber', dark: '#F5B947', light: '#8A4B00' }, { id: 'orange', name: 'Orange', dark: '#FF9F5A', light: '#9A3F00' }],
+      done: [{ id: 'green', name: 'Green', dark: '#45D68E', light: '#0B6638' }, { id: 'teal', name: 'Teal', dark: '#4FD1C5', light: '#0B6B66' }],
+      error: [{ id: 'red', name: 'Red', dark: '#FF7A7A', light: '#A82020' }, { id: 'pink', name: 'Pink', dark: '#FF7AB8', light: '#A21659' }]
+    };
+    const col = key => {
+      const list = LISTS[key];
+      const pr = list.find(x => x.id === S[key]) || list[0];
+      const ph = D ? pr.dark : pr.light;
+      const cv = String(S[key + 'Custom'] || '').trim();
+      const on = !!S[key + 'CustomOn'];
+      const valid = isHex(cv);
+      const r = valid ? ratio(cv, T.surfHex) : 0;
+      const ok = on && valid && r >= 4.5;
+      let err = '';
+      if (on && cv && !valid) err = 'Enter # and six hex digits, for example ' + (D ? '#8FA3FF' : '#3A55D6') + '.';
+      else if (on && valid && r < 4.5) err = 'Not applied: the contrast is ' + r.toFixed(1) + ':1 on the island and must be at least 4.5:1. Choose a ' + (D ? 'lighter' : 'darker') + ' shade.';
+      return { hex: ok ? cv.toUpperCase() : ph, name: ok ? 'Custom' : pr.name, err: err, valid: valid, r: r, on: on, ph: ph, list: list };
+    };
+    const C = { accent: col('accent'), busy: col('busy'), done: col('done'), error: col('error') };
+    T.accent = C.accent.hex;
+    T.ink = lum(T.accent) > 0.3 ? '#0E0E12' : '#FFFFFF';
+
+    const R = o => {
+      const r = Object.assign({ k: { line: true }, label: '', help: '', labelColor: T.text, labelSize: 14, labelWeight: 400, hasIcon: false, icon: 'dot', hasMascot: false, hasHandle: false, hasMeta: false, meta: '', hasNote: false, note: '', noteIcon: 'info', noteColor: T.muted, notePad: 0, buttons: [], open: false, disabled: false, rowBg: 'transparent', rowShadow: 'none', enter: undefined }, o);
+      r.hasHelp = !!r.help;
+      if (!r.swLabel) r.swLabel = r.label;
+      return r;
+    };
+    const swParts = (on, dis) => ({
+      ariaOn: on ? 'true' : 'false', stateWord: on ? 'On' : 'Off', stateColor: dis ? T.dis : T.muted,
+      swBg: on ? (dis ? T.ctrlDis : T.accent) : 'transparent',
+      swBorder: '1px solid ' + (dis ? T.ctrlDis : (on ? T.accent : T.ctrl)),
+      knob: on ? (dis ? T.win : T.ink) : (dis ? T.ctrlDis : T.muted),
+      knobX: on ? 23 : 3, swCursor: dis ? 'not-allowed' : 'pointer'
+    });
+    const sw = (label, help, key, dis, extra) => R(Object.assign({ k: { line: true, sw: true }, label: label, help: help, disabled: !!dis, labelColor: dis ? T.dis : T.text, toggle: () => this.set({ [key]: !S[key] }) }, swParts(!!S[key], !!dis), extra || {}));
+    const fill = (v, a, b, dis) => { const pc = Math.round((v - a) / (b - a) * 100); const c = dis ? T.ctrlDis : T.accent; const tr = dis ? T.ctrlDis : T.ctrl; return 'linear-gradient(to right, ' + c + ' 0%, ' + c + ' ' + pc + '%, ' + tr + ' ' + pc + '%, ' + tr + ' 100%)'; };
+    const val = (key, a, b) => { const n = Number(S[key]); return (S[key] === '' || isNaN(n)) ? a : clamp(n, a, b); };
+    const slider = (label, help, key, a, b, step, unit, dis, also) => {
+      const raw = S[key];
+      const n = Number(raw);
+      const bad = raw === '' || isNaN(n) || n < a || n > b;
+      const v = val(key, a, b);
+      const ex = also || {};
+      return R({ k: { line: true, slider: true }, label: label, help: help, min: a, max: b, step: step, unit: unit, val: v, raw: raw, fill: fill(v, a, b, dis), disabled: !!dis, labelColor: dis ? T.dis : T.text, numLabel: label + ' in ' + unit, invalid: bad ? 'true' : 'false', numBorder: bad ? '2px solid ' + T.err : '1px solid ' + (dis ? T.ctrlDis : T.ctrl),
+        change: e => this.set(Object.assign({ [key]: Number(e.target.value) }, ex)),
+        numChange: e => { const t = e.target.value; const m = Number(t); const ch = Object.assign({ [key]: t === '' ? '' : m }, ex); if (t !== '' && !isNaN(m) && m >= a && m <= b) this.set(ch); else this.setState(ch); },
+        hasNote: bad, note: 'Enter a value from ' + a + ' to ' + b + '.', noteIcon: 'alert', noteColor: T.err });
+    };
+    const segOpts = (opts, cur, pick, dis) => opts.map(o => { const s = o.id === cur; return { label: o.label, selected: s, aria: s ? 'true' : 'false', bg: s ? (dis ? T.ctrlDis : T.accent) : 'transparent', fg: s ? (dis ? T.win : T.ink) : (dis ? T.dis : T.text), fw: s ? 600 : 400, pick: () => pick(o.id) }; });
+    const seg = (label, help, opts, cur, pick, dis) => R({ k: { line: true, seg: true }, label: label, help: help, opts: segOpts(opts, cur, pick, dis), disabled: !!dis, labelColor: dis ? T.dis : T.text, segBorder: '1px solid ' + (dis ? T.ctrlDis : T.ctrl) });
+    const sel = (label, help, options, cur, onPick, extra) => R(Object.assign({ k: { line: true, sel: true }, label: label, help: help, options: options, value: cur, minW: 220, change: e => onPick(e.target.value) }, extra || {}));
+    const btn = (label, icon, kind, click, dis, aria) => {
+      const st = {
+        primary: { bg: dis ? T.ctrlDis : T.accent, fg: dis ? T.dis : T.ink, ring: 'none' },
+        secondary: { bg: T.btn2, fg: dis ? T.dis : T.text, ring: 'none' },
+        danger: { bg: 'transparent', fg: dis ? T.dis : T.err, ring: 'inset 0 0 0 1px ' + (dis ? T.ctrlDis : T.err) },
+        ghost: { bg: T.btn2, fg: dis ? T.dis : T.text, ring: 'none' }
+      }[kind || 'secondary'];
+      return Object.assign({ label: label || '', hasLabel: !!label, icon: icon || 'dot', hasIcon: !!icon, click: click, disabled: !!dis, aria: aria || undefined, h: label ? 44 : 40, mw: label ? 0 : 40, px: label ? (icon ? 14 : 16) : 0 }, st);
+    };
+    const colorRow = (label, help, key) => {
+      const c = C[key];
+      const open = S.picker === key;
+      const applied = c.name === 'Custom';
+      const presets = c.list.map(x => {
+        const h = D ? x.dark : x.light;
+        const s = !applied && x.id === S[key];
+        return { name: x.name, c: h, ink: lum(h) > 0.3 ? '#0E0E12' : '#FFFFFF', selected: s, aria: s ? 'true' : 'false', border: s ? '2px solid ' + T.text : '1px solid ' + T.ctrl, pick: () => this.set({ [key]: x.id, [key + 'CustomOn']: false }) };
+      });
+      const rr = (c.on && c.valid) ? c.r : ratio(c.ph, T.surfHex);
+      return R({ k: { line: true, color: true }, label: label, help: help, open: open, ariaOpen: open ? 'true' : 'false', chev: open ? 'chevronUp' : 'chevronDown', swatch: c.hex, name: c.name, hex: c.hex,
+        colorAria: label + ' colour: ' + c.name + ', ' + c.hex + '. ' + (open ? 'Close' : 'Open') + ' colour choices.',
+        toggle: () => this.setState({ picker: open ? '' : key }), presets: presets, presetAria: label + ' colour presets', cid: uid + '-' + key,
+        custom: S[key + 'Custom'],
+        customChange: e => { const v = e.target.value.trim(); const ok = isHex(v) && ratio(v, T.surfHex) >= 4.5; const ch = { [key + 'Custom']: e.target.value, [key + 'CustomOn']: true }; if (ok) this.set(ch); else this.setState(ch); },
+        invalid: c.err ? 'true' : 'false', customBorder: c.err ? '2px solid ' + T.err : '1px solid ' + T.ctrl,
+        ratioText: ((c.on && c.valid) ? 'Custom' : c.name) + ' has ' + rr.toFixed(1) + ':1 contrast on the island', ratioIcon: rr >= 4.5 ? 'check' : 'alert', ratioColor: rr >= 4.5 ? T.muted : T.err,
+        hasNote: !!c.err, note: c.err, noteIcon: 'alert', noteColor: T.err });
+    };
+    const BADGE = {
+      connected: { word: 'Connected', icon: 'check', c: T.okC },
+      notfound: { word: 'Not found', icon: 'alert', c: T.warnC },
+      error: { word: 'Error', icon: 'x', c: T.err },
+      connecting: { word: 'Connecting', icon: 'busy', c: T.text },
+      off: { word: 'Not connected', icon: 'dot', c: T.muted },
+      confirm: { word: 'To confirm', icon: 'info', c: T.muted },
+      when: { word: 'When connected', icon: 'info', c: T.muted }
+    };
+
+    const PAGES = [
+      { id: 'general', title: 'General', icon: 'settings', desc: 'Startup, language and where the island sits on screen.' },
+      { id: 'appearance', title: 'Appearance', icon: 'palette', desc: 'Size, shape, colours and motion of the island. Changes show in the preview straight away.' },
+      { id: 'modules', title: 'Modules', icon: 'grid', desc: 'Turn modules on or off and set their tab order in the expanded island.' },
+      { id: 'agents', title: 'AI agents', icon: 'agent', desc: 'Connect Claude Code and Codex, and choose what the island shows.' },
+      { id: 'spotify', title: 'Spotify', icon: 'music', desc: 'Connect your Spotify account to show and control playback.' },
+      { id: 'clipboard', title: 'Clipboard and whiteboard', icon: 'clipboard', desc: 'Clipboard history, privacy and whiteboard options.' },
+      { id: 'focus', title: 'Focus timer', icon: 'focus', desc: 'Session lengths, breaks and sound.' },
+      { id: 'alerts', title: 'Alerts and sounds', icon: 'bell', desc: 'Sounds and Windows notifications for each event.' },
+      { id: 'hotkeys', title: 'Hotkeys', icon: 'keyboard', desc: 'Keyboard shortcuts that work from anywhere in Windows.' },
+      { id: 'mascot', title: 'Mascot', icon: 'smile', desc: 'How Pip looks and reacts.' },
+      { id: 'privacy', title: 'Privacy and data', icon: 'shield', desc: 'Where your data is kept and what leaves this PC.' },
+      { id: 'about', title: 'About', icon: 'info', desc: 'Version, logs and quitting the app.' }
+    ];
+    const cur = PAGES.find(x => x.id === S.page) || PAGES[0];
+    const nav = PAGES.map(x => { const s = x.id === cur.id; return { title: x.title, icon: x.icon, current: s ? 'page' : 'false', bg: s ? T.sel : 'transparent', fw: s ? 600 : 400, ind: s ? T.accent : 'transparent', go: () => this.setState({ page: x.id, picker: '', recording: '' }) }; });
+
+    const iwE = val('iw', 240, 560), ihE = val('ih', 32, 56), ewE = val('ew', 560, 960), ehE = val('eh', 320, 640);
+    const roundE = val('round', 0, 100), opE = val('opacity', 50, 100), blurE = val('blur', 0, 48), speedE = val('speed', 50, 200);
+    const clipLenE = val('clipLen', 10, 200);
+    const SOUNDS = [{ v: 'chime', label: 'Soft chime' }, { v: 'pop', label: 'Pop' }, { v: 'bell', label: 'Bell' }, { v: 'wood', label: 'Wood block' }, { v: 'none', label: 'None' }];
+    const soundName = v => (SOUNDS.find(x => x.v === v) || SOUNDS[0]).label;
+    let sections = [];
+
+    if (cur.id === 'general') {
+      const minX = iwE / 2 + 16, maxX = 1920 - iwE / 2 - 16, maxY = 1080 - 48 - ihE - 16;
+      const cx = clamp(S.posX / 100 * 1920, minX, maxX);
+      const top = clamp(S.posY, 16, maxY);
+      const centred = Math.abs(cx - 960) < 1;
+      const pw = Math.round(iwE * 0.2), ph = Math.max(6, Math.round(ihE * 0.2));
+      const fromLeft = Math.round(cx - iwE / 2);
+      const mon = {
+        centred: centred, pw: pw, ph: ph, pr: Math.round(ph / 2 * roundE / 100), bw: pw + 16, bx: Math.round(cx * 0.2 - (pw + 16) / 2), by: Math.round(top * 0.2 + ph / 2 - 14),
+        aria: 'Island position: ' + (centred ? 'centred' : fromLeft + ' pixels from the left') + ', ' + top + ' pixels from the top. Use the arrow keys to move it.',
+        hText: centred ? 'Horizontal: centred' : 'Horizontal: ' + fromLeft + ' px from the left edge',
+        vText: 'Vertical: ' + top + ' px from the top edge',
+        centreFg: centred ? T.dis : T.text,
+        down: e => { this._pos = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) {} },
+        move: e => { if (!this._pos) return; const b = e.currentTarget.parentElement.getBoundingClientRect(); let x = (e.clientX - b.left) / b.width * 100; if (Math.abs(x - 50) < 2) x = 50; const y = (e.clientY - b.top) / b.height * 1080 - ihE / 2; this.setState({ posX: clamp(x, 0, 100), posY: Math.round(clamp(y, 16, maxY)) }); },
+        up: () => { if (this._pos) { this._pos = false; this.set({}); } },
+        key: e => { const big = e.shiftKey; let dx = 0, dy = 0; if (e.key === 'ArrowLeft') dx = big ? -5 : -1; else if (e.key === 'ArrowRight') dx = big ? 5 : 1; else if (e.key === 'ArrowUp') dy = big ? -16 : -4; else if (e.key === 'ArrowDown') dy = big ? 16 : 4; else return; e.preventDefault(); this.set({ posX: clamp(cx / 19.2 + dx, 0, 100), posY: clamp(top + dy, 16, maxY) }); },
+        centre: () => this.set({ posX: 50 })
+      };
+      const fsNote = !S.tray && S.hideFs;
+      sections = [
+        { title: 'Startup', rows: [sw('Start with Windows', 'Opens the island when you sign in.', 'startWin'), sw('Show tray icon', 'When off, open settings from the Start menu.', 'tray')] },
+        { title: 'Language', rows: [sel('Language', 'Used in the island and in this window.', [{ v: 'en-GB', label: 'English (United Kingdom)' }, { v: 'en-US', label: 'English (United States)' }, { v: 'zh-CN', label: '简体中文' }, { v: 'ms-MY', label: 'Bahasa Melayu' }], S.lang, v => this.set({ lang: v }))] },
+        { title: 'Position', rows: [
+          R({ k: { mon: true }, mon: mon }),
+          sel('Monitor', 'Which display shows the island.', [{ v: 'follow', label: 'Follow the focused window' }, { v: 'd1', label: 'Display 1 (main)' }, { v: 'd2', label: 'Display 2' }], S.monitor, v => this.set({ monitor: v })),
+          sw('Hide during fullscreen apps', 'The tray icon shows status while the island is hidden.', 'hideFs', false, { hasNote: fsNote, note: 'The tray icon is off, so status will not show anywhere while a fullscreen app is open.', noteIcon: 'alert', noteColor: T.text })
+        ] }
+      ];
+    }
+
+    let pv = { modeOpts: [], statusOpts: [], tabs: [] };
+    if (cur.id === 'appearance') {
+      const ST = {
+        idle: { mood: 'idle' },
+        busy: { mood: 'focused', icon: 'busy', word: 'Busy', label: 'Refactoring the login form', meta: '2:14', c: C.busy.hex },
+        done: { mood: 'happy', icon: 'check', word: 'Done', label: 'Task finished', meta: 'now', c: C.done.hex },
+        error: { mood: 'dizzy', icon: 'alert', word: 'Error', label: 'Build failed', meta: '', c: C.error.hex }
+      };
+      const st = ST[S.pvStatus] || ST.busy;
+      const coll = S.pvMode !== 'expanded';
+      const idle = S.pvStatus === 'idle';
+      const dur = Math.round(280 * 100 / speedE);
+      const w = idle ? Math.round(iwE / 3) : iwE;
+      const r = Math.round(ihE / 2 * roundE / 100);
+      pv = {
+        collapsed: coll, expanded: !coll, idle: coll && idle, status: coll && !idle,
+        w: w, h: ihE, r: r, ew: Math.round(ewE * 0.25), eh: Math.round(ehE * 0.25), er: Math.round(32 * roundE / 100 * 0.25),
+        bg: 'rgba(' + T.surf.join(', ') + ', ' + (opE / 100) + ')',
+        blur: blurE > 0 ? 'blur(' + blurE + 'px) saturate(140%)' : 'none',
+        shadow: (idle || !coll) ? '0 8px 24px rgba(0, 0, 0, 0.35)' : '0 0 0 2px ' + st.c + ', 0 0 0 3.5px ' + T.surfHex + ', 0 0 24px 4px ' + st.c + '8C',
+        trans: S.reduce ? 'opacity 120ms linear' : 'width ' + dur + 'ms cubic-bezier(0.2, 0.8, 0.2, 1), height ' + dur + 'ms cubic-bezier(0.2, 0.8, 0.2, 1), border-radius ' + dur + 'ms ease',
+        mood: st.mood, ms: ihE >= 36 ? 24 : 20, icon: st.icon || 'dot', word: st.word || '', label: st.label || '', meta: st.meta || '', c: st.c || T.muted,
+        tabs: [T.accent, T.ctrl, T.ctrl, T.ctrl, T.ctrl, T.ctrl].map(c => ({ c: c })),
+        modeOpts: segOpts([{ id: 'collapsed', label: 'Collapsed' }, { id: 'expanded', label: 'Expanded' }], S.pvMode, v => this.setState({ pvMode: v })),
+        statusOpts: segOpts([{ id: 'idle', label: 'Idle' }, { id: 'busy', label: 'Busy' }, { id: 'done', label: 'Done' }, { id: 'error', label: 'Error' }], S.pvStatus, v => this.setState({ pvStatus: v }), !coll),
+        statusDis: !coll, statusBorder: '1px solid ' + (coll ? T.ctrl : T.ctrlDis),
+        caption: coll ? 'Collapsed ' + w + ' × ' + ihE + ' px · corners ' + r + ' px · opacity ' + opE + '% · blur ' + blurE + ' px' : 'Expanded ' + ewE + ' × ' + ehE + ' px, drawn at 25% · corners ' + Math.round(32 * roundE / 100) + ' px · opacity ' + opE + '%',
+        aria: 'Island preview, ' + (coll ? 'collapsed, ' + (idle ? 'idle' : st.word + ': ' + st.label) + ', ' + w + ' by ' + ihE + ' pixels' : 'expanded, ' + ewE + ' by ' + ehE + ' pixels')
+      };
+      const preset = id => { const P = { compact: [320, 36], standard: [384, 40], large: [448, 48] }[id]; this.set({ preset: id, iw: P[0], ih: P[1] }); };
+      sections = [
+        { title: 'Island size', rows: [
+          seg('Preset', 'Compact 320 × 36, Standard 384 × 40, Large 448 × 48.', [{ id: 'compact', label: 'Compact' }, { id: 'standard', label: 'Standard' }, { id: 'large', label: 'Large' }], S.preset, preset),
+          slider('Width', 'Width with a status showing. Idle is one third of this.', 'iw', 240, 560, 8, 'px', false, { preset: 'custom' }),
+          slider('Height', 'Height of the collapsed island.', 'ih', 32, 56, 2, 'px', false, { preset: 'custom' })
+        ] },
+        { title: 'Expanded size', rows: [slider('Width', 'Width of the expanded panel.', 'ew', 560, 960, 8, 'px'), slider('Height', 'Height of the expanded panel.', 'eh', 320, 640, 8, 'px')] },
+        { title: 'Shape and surface', rows: [slider('Corner roundness', '100% is a full pill.', 'round', 0, 100, 5, '%'), slider('Opacity', 'Hovering raises it to at least 92%.', 'opacity', 50, 100, 5, '%'), slider('Blur', 'Blurs what is behind the island. 0 turns it off.', 'blur', 0, 48, 2, 'px')] },
+        { title: 'Colours', rows: [colorRow('Accent', 'Highlights, progress and the selected tab.', 'accent'), colorRow('Busy', 'Glow, icon and word while an agent works.', 'busy'), colorRow('Done', 'Glow, icon and word when a task finishes.', 'done'), colorRow('Error', 'Glow, icon and word when something fails.', 'error')] },
+        { title: 'Theme', rows: [seg('Theme', 'Applies to the island and to this window.', [{ id: 'dark', label: 'Dark' }, { id: 'light', label: 'Light' }, { id: 'follow', label: 'Follow Windows' }], S.themeMode, v => this.set({ themeMode: v }))] },
+        { title: 'Motion', rows: [
+          slider('Animation speed', S.reduce ? 'Turned off while Reduce motion is on.' : 'At this speed, expanding takes ' + dur + ' ms.', 'speed', 50, 200, 25, '%', S.reduce),
+          sw('Reduce motion', 'Replaces movement with short fades.', 'reduce')
+        ] }
+      ];
+    }
+
+    if (cur.id === 'modules') {
+      const MOD = { agent: { name: 'AI agent', icon: 'agent', desc: 'Live activity from Claude Code and Codex.' }, spotify: { name: 'Spotify', icon: 'music', desc: 'Track, controls and devices.' }, media: { name: 'Media', icon: 'media', desc: 'Other players on this PC.' }, clipboard: { name: 'Clipboard', icon: 'clipboard', desc: 'Recent copies.' }, whiteboard: { name: 'Whiteboard', icon: 'whiteboard', desc: 'Layout to be confirmed.' }, files: { name: 'File tray', icon: 'folder', desc: 'Files you drop on the island.' }, note: { name: 'Quick note', icon: 'note', desc: 'One short note.' }, focus: { name: 'Focus timer', icon: 'focus', desc: 'Focus and break sessions.' }, mascot: { name: 'Mascot', icon: 'smile', desc: 'Pip in the island.' } };
+      const move = (arr, i, j) => { const a = arr.slice(); const x = a.splice(i, 1)[0]; a.splice(j, 0, x); return a; };
+      const n = S.modules.length;
+      let tab = 0;
+      const rows = S.modules.map((id, i) => {
+        const m = MOD[id];
+        const on = !!S.modOn[id];
+        if (on) tab += 1;
+        const dragging = S.drag === id;
+        return R(Object.assign({ k: { line: true, sw: true }, hasHandle: true, hasIcon: true, icon: m.icon, label: m.name, help: m.desc, swLabel: 'Show ' + m.name, hasMeta: true, meta: on ? 'Tab ' + tab : 'Hidden',
+          handleLabel: 'Reorder ' + m.name + ', position ' + (i + 1) + ' of ' + n + '. Use the up and down arrow keys, or drag.',
+          handleDown: () => { this._drag = id; this.setState({ drag: id }); },
+          handleKey: e => { let j = i; if (e.key === 'ArrowUp') j = i - 1; else if (e.key === 'ArrowDown') j = i + 1; else return; e.preventDefault(); if (j < 0 || j >= n) return; this.set({ modules: move(S.modules, i, j) }); },
+          enter: () => { if (!this._drag || this._drag === id) return; const c = this.S().modules; this.setState({ modules: move(c, c.indexOf(this._drag), c.indexOf(id)) }); },
+          rowBg: dragging ? T.sel : 'transparent', rowShadow: dragging ? 'inset 0 0 0 2px ' + T.accent : 'none',
+          toggle: () => this.set({ modOn: Object.assign({}, S.modOn, { [id]: !on }) }) }, swParts(on, false)));
+      });
+      sections = [{ title: 'Modules', desc: 'Drag a row by its handle to change the tab order. Hidden modules keep their place.', rows: rows }];
+    }
+
+    if (cur.id === 'agents') {
+      const agent = (id, name) => {
+        const on = !!S[id + 'On'];
+        const status = on ? S[id + 'Status'] : 'off';
+        const test = S[id + 'Test'];
+        const ok = on && status === 'connected';
+        const detail = { connected: 'Connected. Its activity shows in the island.', notfound: name + ' was not found on this PC.', error: 'The connection stopped working.', connecting: 'Looking for ' + name + ' on this PC.', off: 'Turn on Connect to show its activity in the island.' }[status];
+        let note = '', nIcon = 'info', nColor = T.muted;
+        if (test === 'testing') { note = 'Testing the connection.'; nIcon = 'busy'; nColor = T.text; }
+        else if (test === 'ok') { note = 'The connection works. Checked just now.'; nIcon = 'check'; nColor = T.okC; }
+        else if (test === 'fail') { note = status === 'notfound' ? 'Still not found. Install ' + name + ', then test again.' : 'The test failed. Check that ' + name + ' is running, then test again.'; nIcon = 'alert'; nColor = T.err; }
+        else if (status === 'notfound') { note = 'Install ' + name + ', then select Test connection.'; nIcon = 'alert'; nColor = T.text; }
+        else if (status === 'error') { note = 'Select Test connection to try again.'; nIcon = 'alert'; nColor = T.text; }
+        const head = R({ k: { line: true, badge: true }, hasIcon: true, icon: 'terminal', label: name, labelSize: 16, labelWeight: 600, help: detail, badge: BADGE[status], buttons: [btn('Test connection', null, 'secondary', () => this.test(id), !on || test === 'testing' || status === 'connecting')], hasNote: !!note, note: note, noteIcon: nIcon, noteColor: nColor, notePad: 52 });
+        const connect = R(Object.assign({ k: { line: true, sw: true }, label: 'Connect', help: on ? 'Turn off to stop showing ' + name + ' in the island.' : 'Turn on to look for ' + name + ' on this PC.', toggle: () => this.connectAgent(id) }, swParts(on, false)));
+        const tg = (l, h, key) => sw(l, ok ? h : 'Available once ' + name + ' is connected.', id + key, !ok);
+        return { title: name, rows: [head, connect, tg('Show live activity', 'Shows what the agent is doing in the island.', 'Live'), tg('Ask before allowing actions', 'Shows a permission request in the island first.', 'Ask'), tg('Play a sound when done', 'Uses the sound set in Alerts and sounds.', 'Sound'), tg('Show the usage ring', 'Shows N/A when usage is not available.', 'Ring')] };
+      };
+      sections = [agent('claude', 'Claude Code'), agent('codex', 'Codex')];
+    }
+
+    if (cur.id === 'spotify') {
+      const sp = S.spStatus;
+      const cid = String(S.clientId || '');
+      const cidBad = sp === 'off' && cid !== '' && /\s/.test(cid.trim() === '' ? 'x x' : cid);
+      const connect = () => { this.set({ spStatus: 'connecting' }, 'Connecting to Spotify'); this.later(() => { if (this.S().spStatus === 'connecting') this.set({ spStatus: 'connected' }, 'Spotify connected'); }, 1500); };
+      const stop = msg => () => this.set({ spStatus: 'off' }, msg);
+      sections = [
+        { title: 'Connection', rows: [
+          R({ k: { line: true, badge: true }, hasIcon: true, icon: 'music', label: 'Spotify', labelSize: 16, labelWeight: 600, help: { off: 'Add your client ID below, then connect.', connecting: 'Finish signing in to Spotify in your browser.', connected: 'Signed in as [SPOTIFY ACCOUNT].' }[sp], badge: BADGE[sp], buttons: sp === 'off' ? [btn('Connect', null, 'primary', connect, cid.trim() === '' || cidBad)] : sp === 'connecting' ? [btn('Cancel', null, 'secondary', stop('Connection cancelled'))] : [btn('Disconnect', null, 'secondary', stop('Spotify disconnected'))] }),
+          R({ hasIcon: true, icon: 'info', label: 'Playback control may need a Spotify Premium account.', help: 'This has not been checked yet.' })
+        ] },
+        { title: 'Developer app', rows: [
+          R({ k: { line: true, text: true }, label: 'Client ID', help: 'Create an app in the Spotify developer dashboard, then paste its client ID here.', value: cid, placeholder: 'Paste your client ID', readOnly: sp !== 'off', change: e => this.setState({ clientId: e.target.value }), invalid: cidBad ? 'true' : 'false', fieldBorder: cidBad ? '2px solid ' + T.err : '1px solid ' + (sp !== 'off' ? T.ctrlDis : T.ctrl), fieldBg: sp !== 'off' ? T.win : T.field, hasNote: cidBad || sp !== 'off', note: cidBad ? 'A client ID cannot contain spaces.' : 'Disconnect to change the client ID.', noteIcon: cidBad ? 'alert' : 'info', noteColor: cidBad ? T.err : T.muted })
+        ] }
+      ];
+    }
+
+    if (cur.id === 'clipboard') {
+      const stored = S.clipCount > 0
+        ? R({ hasIcon: true, icon: 'clipboard', label: S.clipCount + ' items stored', help: 'The oldest items are removed after ' + clipLenE + '.', buttons: [btn('Clear history', 'trash', 'danger', () => this.setState({ dialog: 'clearClip' }))] })
+        : R({ k: { empty: true }, help: S.clipPause ? 'History is paused. Turn off Pause history to start saving again.' : 'Items you copy will be kept here, up to ' + clipLenE + '.' });
+      sections = [
+        { title: 'Clipboard history', rows: [slider('History length', 'How many items are kept.', 'clipLen', 10, 200, 10, 'items'), sw('Pause history', 'New copies are not saved while paused.', 'clipPause'), sw('Skip password manager entries', 'Copies from password managers are not saved.', 'skipPw'), sw('Encrypt history', 'Stored items are encrypted on this PC.', 'encrypt'), stored] },
+        { title: 'Whiteboard', rows: [R({ k: { wb: true } })] }
+      ];
+    }
+
+    if (cur.id === 'focus') {
+      const lbA = Number(S.longMin), lbB = Number(S.longEvery);
+      const badA = S.longMin === '' || isNaN(lbA) || lbA < 5 || lbA > 60, badB = S.longEvery === '' || isNaN(lbB) || lbB < 2 || lbB > 8;
+      const lbSet = (k, a, b) => e => { const t = e.target.value; const m = Number(t); const ch = { [k]: t === '' ? '' : m }; if (t !== '' && m >= a && m <= b) this.set(ch); else this.setState(ch); };
+      sections = [
+        { title: 'Sessions', rows: [
+          slider('Focus length', 'Length of one focus session.', 'focusMin', 5, 90, 5, 'min'),
+          slider('Break length', 'Short break after each session.', 'breakMin', 1, 30, 1, 'min'),
+          R({ k: { line: true, lb: true }, label: 'Long break rule', help: 'A longer break after several sessions.', lbMin: S.longMin, lbEvery: S.longEvery, lbMinChange: lbSet('longMin', 5, 60), lbEveryChange: lbSet('longEvery', 2, 8), invalid: (badA || badB) ? 'true' : 'false', lbBorderA: badA ? '2px solid ' + T.err : '1px solid ' + T.ctrl, lbBorderB: badB ? '2px solid ' + T.err : '1px solid ' + T.ctrl, hasNote: badA || badB, note: 'Use 5 to 60 minutes, after every 2 to 8 sessions.', noteIcon: 'alert', noteColor: T.err })
+        ] },
+        { title: 'Sound and alerts', rows: [
+          sel('Sound', 'Plays when a session ends.', SOUNDS, S.focusSound, v => this.set({ focusSound: v }), { minW: 180, buttons: [btn(null, 'play', 'ghost', () => this.set({}, 'Playing ' + soundName(S.focusSound)), S.focusSound === 'none', 'Preview sound')] }),
+          sw('Do not disturb', 'Hides other island alerts during focus sessions.', 'dnd')
+        ] }
+      ];
+    }
+
+    if (cur.id === 'alerts') {
+      const EV = [{ id: 'done', name: 'Task done', icon: 'check', c: T.okC }, { id: 'error', name: 'Error', icon: 'alert', c: T.err }, { id: 'perm', name: 'Permission request', icon: 'agent', c: T.text }, { id: 'timer', name: 'Timer end', icon: 'clock', c: T.text }];
+      const al = EV.map(ev => {
+        const a = S.alerts[ev.id];
+        const mute = a.s === 'none';
+        const upd = ch => this.set({ alerts: Object.assign({}, S.alerts, { [ev.id]: Object.assign({}, a, ch) }) });
+        return Object.assign({ name: ev.name, icon: ev.icon, c: ev.c, s: a.s, v: a.v, vText: mute ? 'Off' : a.v + '%', mute: mute, fill: fill(a.v, 0, 100, mute),
+          sChange: e => upd({ s: e.target.value }), vChange: e => upd({ v: Number(e.target.value) }), toggle: () => upd({ n: !a.n }),
+          sLabel: 'Sound for ' + ev.name, vLabel: 'Volume for ' + ev.name, nLabel: 'Windows notification for ' + ev.name, pLabel: 'Preview the sound for ' + ev.name,
+          preview: () => this.set({}, 'Playing ' + soundName(a.s)), pColor: mute ? T.dis : T.text }, swParts(a.n, false));
+      });
+      sections = [{ title: 'Events', desc: 'Each event can play a sound and show a Windows notification. Set a sound to None to silence it.', rows: [R({ k: { alerts: true }, al: al })] }];
+    }
+
+    if (cur.id === 'hotkeys') {
+      const HK = [{ id: 'toggle', label: 'Show or hide the island' }, { id: 'settings', label: 'Open settings' }, { id: 'clip', label: 'Open clipboard history' }, { id: 'note', label: 'New quick note' }, { id: 'focus', label: 'Start or pause the focus timer' }, { id: 'music', label: 'Play or pause music' }];
+      const DEF = this.defKeys();
+      const combo = id => (S.keys[id] || []).join(' + ');
+      const users = {};
+      HK.forEach(h => { const c = combo(h.id); (users[c] = users[c] || []).push(h); });
+      const rows = HK.map(h => {
+        const c = combo(h.id);
+        const others = users[c].filter(o => o.id !== h.id);
+        const conf = others.length > 0;
+        const rec = S.recording === h.id;
+        const isDef = c === DEF[h.id].join(' + ');
+        return R({ k: { line: true, keys: true }, label: h.label,
+          kf: { caps: S.keys[h.id], recording: rec, notRec: !rec, conflict: conf && !rec, invalid: conf ? 'true' : 'false',
+            border: rec ? '2px solid ' + T.accent : (conf ? '2px solid ' + T.err : '1px solid ' + T.ctrl),
+            aria: 'Shortcut for ' + h.label + ': ' + c + (conf ? ', conflict' : '') + '. Select to change.',
+            record: () => this.setState({ recording: rec ? '' : h.id }),
+            blur: () => { if (this.S().recording === h.id) this.setState({ recording: '' }); },
+            keydown: e => this.recordKey(e, h.id),
+            reset: () => this.set({ keys: Object.assign({}, S.keys, { [h.id]: DEF[h.id].slice() }) }),
+            isDefault: isDef, resetColor: isDef ? T.dis : T.text, resetLabel: 'Reset the shortcut for ' + h.label },
+          hasNote: conf || rec, note: rec ? 'Press the new combination with Ctrl, Alt or Shift. Esc cancels.' : c + ' is also used by "' + others.map(o => o.label).join('", "') + '". Choose another combination.',
+          noteIcon: rec ? 'info' : 'alert', noteColor: rec ? T.muted : T.err });
+      });
+      sections = [{ title: 'Shortcuts', desc: 'Select a shortcut, then press the new combination.', rows: rows }];
+    }
+
+    if (cur.id === 'mascot') {
+      const TONES = [{ id: 'peri', name: 'Periwinkle', dark: '#8C9CFF', light: '#6A7DF2' }, { id: 'mint', name: 'Mint', dark: '#7ADBB8', light: '#3FA883' }, { id: 'peach', name: 'Peach', dark: '#FFB48C', light: '#E08A57' }, { id: 'lilac', name: 'Lilac', dark: '#C9A8FF', light: '#9B72E6' }];
+      const moods = R({ k: { mp: true, segBelow: true }, label: 'Preview mood', mood: S.mood, opts: segOpts([{ id: 'idle', label: 'Idle' }, { id: 'focused', label: 'Focused' }, { id: 'curious', label: 'Curious' }, { id: 'happy', label: 'Happy' }, { id: 'dizzy', label: 'Dizzy' }], S.mood, v => this.setState({ mood: v })), segBorder: '1px solid ' + T.ctrl });
+      const sws = TONES.map(x => { const s = x.id === S.tone; return { name: x.name, c: D ? x.dark : x.light, selected: s, aria: s ? 'true' : 'false', ring: s ? '0 0 0 2px ' + T.card + ', 0 0 0 4px ' + T.text : 'inset 0 0 0 1px ' + T.line, pick: () => this.set({ tone: x.id }) }; });
+      sections = [
+        { title: 'Preview', rows: [moods] },
+        { title: 'Look', rows: [R({ k: { line: true, outfit: true }, label: 'Outfit', help: 'Only the default look exists so far.' }), R({ k: { line: true, swatches: true }, label: 'Colour', help: 'Pip\u2019s body colour.', sws: sws })] },
+        { title: 'Reactions', rows: [sw('React to music', 'Pip reacts while music is playing.', 'reactMusic'), sw('React to pokes', 'Pip reacts when you click it.', 'reactPokes')] }
+      ];
+    }
+
+    if (cur.id === 'privacy') {
+      const leave = (icon, label, help, b) => R({ k: { line: true, badge: true }, hasIcon: true, icon: icon, label: label, help: help, badge: BADGE[b] });
+      sections = [
+        { title: 'Storage', rows: [R({ hasIcon: true, icon: 'folder', label: 'Data folder', help: 'C:\\Users\\[USER]\\AppData\\Roaming\\Atoll (location to be confirmed)', buttons: [btn('Open folder', 'external', 'secondary', () => {})] })] },
+        { title: 'What leaves this PC', desc: 'Items marked To confirm depend on how the app is built.', rows: [
+          leave('music', 'Spotify', 'Playback commands go to Spotify, and track details come back.', 'when'),
+          leave('agent', 'AI agents', 'Activity is read from Claude Code and Codex on this PC. Whether anything is sent on is to be confirmed.', 'confirm'),
+          leave('download', 'Update checks', 'Whether the app checks online for new versions.', 'confirm'),
+          leave('clipboard', 'Clipboard, notes and whiteboard', 'Intended to stay on this PC only.', 'confirm')
+        ] },
+        { title: 'Your data', rows: [
+          R({ hasIcon: true, icon: 'download', label: 'Export settings', help: 'Saves your settings to a file.', buttons: [btn('Export', null, 'secondary', () => this.set({}, 'Settings exported'))] }),
+          R({ hasIcon: true, icon: 'upload', label: 'Import settings', help: 'Replaces your current settings with the ones in a file.', buttons: [btn('Import', null, 'secondary', () => {})] }),
+          R({ hasIcon: true, icon: 'trash', label: 'Clear all data', help: 'Removes settings, clipboard history, notes and connections.', buttons: [btn('Clear all data', 'trash', 'danger', () => this.setState({ dialog: 'clearAll' }))] })
+        ] }
+      ];
+    }
+
+    if (cur.id === 'about') {
+      sections = [{ rows: [
+        R({ hasMascot: true, label: 'Atoll', labelSize: 20, labelWeight: 600, help: 'Version [0.1.0] · Build [BUILD DATE]' }),
+        R({ hasIcon: true, icon: 'file', label: 'Log folder', help: 'Logs help when something goes wrong.', buttons: [btn('Open log folder', 'external', 'secondary', () => {})] }),
+        R({ hasIcon: true, icon: 'power', label: 'Quit Atoll', help: 'Closes the island, the tray icon and this window.', buttons: [btn('Quit', null, 'danger', () => {})] })
+      ] }];
+    }
+
+    sections.forEach(sec => {
+      sec.hasTitle = !!sec.title;
+      sec.hasDesc = !!sec.desc;
+      sec.aria = sec.title || cur.title;
+      const last = sec.rows.length - 1;
+      sec.rows.forEach((r, i) => { r.sep = i ? '1px solid ' + T.line : 'none'; r.rad = (i === 0 ? '16px 16px ' : '0 0 ') + (i === last ? '16px 16px' : '0 0'); });
+    });
+
+    const RESET = {
+      general: ['startWin', 'tray', 'lang', 'posX', 'posY', 'monitor', 'hideFs'],
+      appearance: ['preset', 'iw', 'ih', 'ew', 'eh', 'round', 'opacity', 'blur', 'accent', 'accentCustom', 'accentCustomOn', 'busy', 'busyCustom', 'busyCustomOn', 'done', 'doneCustom', 'doneCustomOn', 'error', 'errorCustom', 'errorCustomOn', 'picker', 'themeMode', 'speed', 'reduce'],
+      modules: ['modules', 'modOn'],
+      agents: ['claudeOn', 'claudeStatus', 'claudeLive', 'claudeAsk', 'claudeSound', 'claudeRing', 'claudeTest', 'codexOn', 'codexStatus', 'codexLive', 'codexAsk', 'codexSound', 'codexRing', 'codexTest'],
+      spotify: ['spStatus', 'clientId'],
+      clipboard: ['clipLen', 'clipPause', 'skipPw', 'encrypt'],
+      focus: ['focusMin', 'breakMin', 'longMin', 'longEvery', 'focusSound', 'dnd'],
+      alerts: ['alerts'],
+      hotkeys: ['keys', 'recording'],
+      mascot: ['mood', 'tone', 'reactMusic', 'reactPokes']
+    };
+    const DLG = {
+      reset: { title: 'Reset ' + cur.title + ' to defaults?', body: 'Every setting on this page goes back to its default. Other pages are not changed.', ok: 'Reset page' },
+      clearClip: { title: 'Clear clipboard history?', body: 'This removes ' + S.clipCount + ' stored items. This cannot be undone.', ok: 'Clear history' },
+      clearAll: { title: 'Clear all data?', body: 'This removes your settings, clipboard history, notes and connections. This cannot be undone.', ok: 'Clear all data' }
+    };
+    const d = DLG[S.dialog];
+    const dlg = d ? Object.assign({ show: true, tid: uid + '-dt', bid: uid + '-db', cancel: () => this.setState({ dialog: '' }),
+      confirm: () => {
+        if (S.dialog === 'reset') { const ch = { dialog: '' }; (RESET[cur.id] || []).forEach(k => { ch[k] = undefined; }); if (cur.id === 'hotkeys') ch.keys = this.defKeys(); this.set(ch, cur.title + ' reset to defaults'); }
+        else if (S.dialog === 'clearClip') this.set({ clipCount: 0, dialog: '' }, 'Clipboard history cleared');
+        else { const ch = {}; Object.keys(this.state || {}).forEach(k => { ch[k] = undefined; }); Object.assign(ch, { page: S.page, clipCount: 0, spStatus: 'off', clientId: '', keys: this.defKeys(), dialog: '' }); this.set(ch, 'All data cleared'); }
+      } }, d) : { show: false, tid: uid + '-dt', bid: uid + '-db', title: '', body: '', ok: '' };
+
+    return {
+      t: T, eff: eff, h: Number(p.h) || 640, tone: S.tone, nav: nav, pv: pv, sounds: SOUNDS,
+      pg: { title: cur.title, desc: cur.desc, canReset: !!RESET[cur.id], hasPv: cur.id === 'appearance', sections: sections },
+      resetBtn: { click: () => this.setState({ dialog: 'reset' }) },
+      dlg: dlg,
+      toast: { show: S.toastAt > 0, msg: S.toastMsg || 'Saved' },
+      endDrag: () => { if (this._drag) { this._drag = null; this.set({ drag: '' }); } }
+    };
+  }
+}
+</script>
+</body>
+</html>

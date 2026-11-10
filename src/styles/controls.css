@@ -1,0 +1,158 @@
+/* Shared controls for the island (and the Settings window's live preview).
+   Every value is a token from tokens.css. Press feedback is GSAP (use:pressable). */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-8);
+  height: var(--size-button);
+  padding: 0 var(--sp-16);
+  border-radius: var(--r-control);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+  white-space: nowrap;
+  transition: background-color calc(var(--dur-fast) / var(--speed)) var(--ease-settle);
+}
+.btn.primary {
+  background-color: var(--c-accent);
+  color: var(--c-accent-ink);
+}
+.btn.secondary {
+  background-color: var(--c-button);
+  color: var(--c-ink);
+}
+.btn.small {
+  height: var(--size-tab);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-small);
+}
+.btn:hover:not(:disabled),
+.icon-btn:hover:not(:disabled) {
+  background-image: linear-gradient(var(--c-hover), var(--c-hover));
+}
+.btn:disabled,
+.icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--size-control);
+  height: var(--size-control);
+  border-radius: var(--r-pill);
+  background-color: var(--c-surface-icon);
+  color: var(--c-ink);
+}
+.icon-btn.bare {
+  background-color: transparent;
+}
+
+.card {
+  border-radius: var(--r-card);
+  background: var(--c-surface-card);
+  padding: var(--sp-16);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.label {
+  font-size: var(--fs-label);
+  color: var(--c-muted);
+}
+.label.strong {
+  font-weight: var(--fw-strong);
+}
+
+.ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.field {
+  box-sizing: border-box;
+  height: var(--size-control);
+  padding: 0 var(--sp-12);
+  border-radius: var(--r-control);
+  border: 1px solid var(--c-hairline);
+  background: var(--c-surface-card);
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  outline: none;
+}
+.field:focus-visible {
+  outline: var(--focus-width) solid var(--c-accent);
+  outline-offset: 0;
+}
+
+/* status words: icon + word in the signal colour */
+.status-word {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-4);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-strong);
+  flex: none;
+}
+.status-word.working { color: var(--c-busy); }
+.status-word.done { color: var(--c-done); }
+.status-word.error { color: var(--c-error); }
+.status-word.attention { color: var(--c-accent-text); }
+.status-word.idle { color: var(--c-muted); }
+
+/* segmented radio group (devices) */
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border-radius: calc(var(--r-card) + var(--sp-4));
+  background: var(--c-surface-card);
+}
+.segmented button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-8);
+  height: var(--size-tab);
+  border-radius: var(--r-card);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--c-muted);
+  min-width: 0;
+}
+.segmented button[aria-checked="true"] {
+  background: var(--c-tab);
+  color: var(--c-ink);
+}
+
+/* empty state: big Pip, title, hint */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-8);
+  text-align: center;
+  padding: var(--sp-24);
+  border-radius: var(--r-card);
+  background: var(--c-surface-card);
+}
+.empty-state .title {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  margin-top: var(--sp-8);
+}
+.empty-state .hint {
+  font-size: var(--fs-small);
+  color: var(--c-muted);
+  max-width: var(--size-hint);
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+src-tauri/gen/
+*.log
+
+# local tooling (generated)
+graphify-out/
+.claude/worktrees/

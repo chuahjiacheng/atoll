@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atoll Settings prototype</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./assets/e3d6992181d45519389716bb10dd3e50.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 960px; height: 640px">
+<dc-import name="Settings" page="{{page}}" theme="{{theme}}" h="640" hint-size="960px,640px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"page":{"editor":"enum","options":["general","appearance","modules","agents","spotify","clipboard","focus","alerts","hotkeys","mascot","privacy","about"],"default":"appearance"},"$preview":{"width":960,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark', page: this.props.page ?? 'appearance' };
+  }
+}
+</script>
+</body>
+</html>

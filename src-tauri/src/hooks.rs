@@ -1,0 +1,227 @@
+//! Installs / removes Crest's Claude Code hooks in `~/.claude/settings.json`.
+//!
+//! - Merges: other hooks (e.g. your graphify hooks) are left untouched.
+//! - Our entries are recognised by the command containing `crest-bridge`.
+//! - A timestamped backup of settings.json is written before every change.
+//! - The bridge exe is copied to `%LOCALAPPDATA%\Crest\bin` so hooks keep
+//!   working when the project is rebuilt or moved.
+//!
+//! Config format: https://code.claude.com/docs/en/hooks ("Hook locations", "Matcher patterns").
+
+use std::path::Path;
+
+use serde::Serialize;
+use serde_json::{json, Map, Value};
+
+use crate::paths;
+
+const MARKER: &str = "crest-bridge";
+
+/// (event, uses a tool-name matcher, hook timeout in seconds).
+/// Events without matchers match everything. PermissionRequest waits for a
+/// click in the island, so it gets a long timeout (the island itself gives up
+/// after `permissions::WAIT` and hands the prompt back to Claude Code).
+const EVENTS: &[(&str, bool, u32)] = &[
+    ("SessionStart", false, 10),
+    ("SessionEnd", false, 10),
+    ("UserPromptSubmit", false, 10),
+    ("PreToolUse", true, 10),
+    ("PermissionRequest", true, 600),
+    ("PostToolUse", true, 10),
+    ("PostToolUseFailure", true, 10),
+    ("Notification", false, 10),
+    ("Stop", false, 10),
+    ("StopFailure", false, 10),
+];
+
+/// Our status line (usage ring). Only installed when you have none of your own.
+fn statusline_value() -> Value {
+    json!({ "type": "command", "command": format!("{} statusline", bridge_command()), "refreshInterval": 60 })
+}
+
+fn statusline_is_ours(settings: &Value) -> bool {
+    settings.pointer("/statusLine/command").and_then(Value::as_str).is_some_and(|c| c.contains(MARKER))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookStatus {
+    pub installed_events: Vec<String>,
+    pub all_installed: bool,
+    pub bridge_present: bool,
+    pub settings_path: String,
+    pub bridge_path: String,
+    /// "crest" (ours), "other" (yours, left alone) or "none".
+    pub status_line: String,
+}
+
+fn bridge_command() -> String {
+    let p = paths::installed_bridge().to_string_lossy().replace('\\', "/");
+    // Claude Code runs shell-form hooks with Git Bash on Windows. An unquoted
+    // forward-slash path also works in PowerShell; quote only if needed.
+    if p.contains(' ') { format!("\"{p}\"") } else { p }
+}
+
+fn read_settings(path: &Path) -> Result<Value, String> {
+    match std::fs::read_to_string(path) {
+        Ok(text) if text.trim().is_empty() => Ok(json!({})),
+        Ok(text) => serde_json::from_str(&text).map_err(|e| format!("settings.json is not valid JSON: {e}")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(json!({})),
+        Err(e) => Err(format!("cannot read {}: {e}", path.display())),
+    }
+}
+
+fn write_settings(path: &Path, value: &Value) -> Result<(), String> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    if path.exists() {
+        let stamp = crate::sessions::now_ms();
+        let backup = path.with_file_name(format!("settings.json.crest-backup-{stamp}"));
+        std::fs::copy(path, &backup).map_err(|e| format!("backup failed: {e}"))?;
+    }
+    let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("json.crest-tmp");
+    std::fs::write(&tmp, text + "\n").map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+fn is_ours(handler: &Value) -> bool {
+    handler.get("command").and_then(Value::as_str).is_some_and(|c| c.contains(MARKER))
+}
+
+/// Remove every Crest handler from a settings object, pruning empty groups.
+fn strip_ours(settings: &mut Value) {
+    let Some(hooks) = settings.get_mut("hooks").and_then(Value::as_object_mut) else { return };
+    for groups in hooks.values_mut() {
+        if let Some(list) = groups.as_array_mut() {
+            for group in list.iter_mut() {
+                if let Some(handlers) = group.get_mut("hooks").and_then(Value::as_array_mut) {
+                    handlers.retain(|h| !is_ours(h));
+                }
+            }
+            list.retain(|g| g.get("hooks").and_then(Value::as_array).is_some_and(|h| !h.is_empty()));
+        }
+    }
+    hooks.retain(|_, groups| groups.as_array().is_some_and(|l| !l.is_empty()));
+    if hooks.is_empty() {
+        settings.as_object_mut().unwrap().remove("hooks");
+    }
+}
+
+fn add_ours(settings: &mut Value) {
+    let obj = settings.as_object_mut().expect("settings root is an object");
+    let hooks = obj.entry("hooks").or_insert_with(|| Value::Object(Map::new()));
+    let hooks = hooks.as_object_mut().expect("hooks is an object");
+    for (event, tool_matcher, timeout) in EVENTS {
+        let handler = json!({ "type": "command", "command": bridge_command(), "timeout": timeout });
+        let mut group = json!({ "hooks": [handler] });
+        if *tool_matcher {
+            group["matcher"] = json!("*");
+        }
+        let list = hooks.entry(*event).or_insert_with(|| json!([]));
+        if let Some(list) = list.as_array_mut() {
+            list.push(group);
+        }
+    }
+}
+
+pub fn status() -> HookStatus {
+    let settings = read_settings(&paths::claude_settings()).unwrap_or(json!({}));
+    let mut installed = Vec::new();
+    if let Some(hooks) = settings.get("hooks").and_then(Value::as_object) {
+        for (event, groups) in hooks {
+            let has = groups.as_array().into_iter().flatten().any(|g| {
+                g.get("hooks").and_then(Value::as_array).into_iter().flatten().any(is_ours)
+            });
+            if has {
+                installed.push(event.clone());
+            }
+        }
+    }
+    let all = EVENTS.iter().all(|(e, _, _)| installed.iter().any(|i| i == e));
+    let status_line = if statusline_is_ours(&settings) {
+        "crest"
+    } else if settings.get("statusLine").is_some() {
+        "other"
+    } else {
+        "none"
+    };
+    HookStatus {
+        status_line: status_line.into(),
+        installed_events: installed,
+        all_installed: all,
+        bridge_present: paths::installed_bridge().exists(),
+        settings_path: paths::claude_settings().display().to_string(),
+        bridge_path: paths::installed_bridge().display().to_string(),
+    }
+}
+
+pub fn install() -> Result<HookStatus, String> {
+    // 1. Put the bridge in its stable location.
+    let src = paths::built_bridge().filter(|p| p.exists()).ok_or(
+        "crest-bridge.exe was not found next to the app. Build it first: npm run bridge",
+    )?;
+    let dst = paths::installed_bridge();
+    std::fs::create_dir_all(dst.parent().unwrap()).map_err(|e| e.to_string())?;
+    std::fs::copy(&src, &dst).map_err(|e| format!("could not copy bridge to {}: {e}", dst.display()))?;
+
+    // 2. Merge our hooks into settings.json (idempotent: strip, then add).
+    let path = paths::claude_settings();
+    let mut settings = read_settings(&path)?;
+    if !settings.is_object() {
+        return Err("settings.json root is not a JSON object".into());
+    }
+    strip_ours(&mut settings);
+    add_ours(&mut settings);
+    // Status line feeds the usage ring; never replace one you set up yourself.
+    if settings.get("statusLine").is_none() || statusline_is_ours(&settings) {
+        settings["statusLine"] = statusline_value();
+    }
+    write_settings(&path, &settings)?;
+    Ok(status())
+}
+
+pub fn uninstall() -> Result<HookStatus, String> {
+    let path = paths::claude_settings();
+    let mut settings = read_settings(&path)?;
+    strip_ours(&mut settings);
+    if statusline_is_ours(&settings) {
+        settings.as_object_mut().unwrap().remove("statusLine");
+    }
+    write_settings(&path, &settings)?;
+    Ok(status())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merge_keeps_foreign_hooks() {
+        let mut s = json!({
+            "model": "x",
+            "hooks": { "PreToolUse": [ { "matcher": "Bash|Grep", "hooks": [ { "type": "command", "command": "graphify hook-guard search" } ] } ] }
+        });
+        add_ours(&mut s);
+        add_ours(&mut s); // would duplicate without strip...
+        strip_ours(&mut s);
+        add_ours(&mut s); // ...so install always strips first
+        let pre = s["hooks"]["PreToolUse"].as_array().unwrap();
+        assert_eq!(pre.len(), 2);
+        assert_eq!(pre[0]["matcher"], "Bash|Grep");
+
+        strip_ours(&mut s);
+        assert_eq!(s["hooks"].as_object().unwrap().len(), 1);
+        assert_eq!(s["model"], "x");
+    }
+
+    #[test]
+    fn statusline_ownership() {
+        let mine = json!({ "statusLine": statusline_value() });
+        assert!(statusline_is_ours(&mine));
+        let yours = json!({ "statusLine": { "type": "command", "command": "~/.claude/statusline.sh" } });
+        assert!(!statusline_is_ours(&yours));
+        assert!(mine["statusLine"]["command"].as_str().unwrap().ends_with(" statusline"));
+    }
+}

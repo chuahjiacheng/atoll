@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atoll island</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="display: inline-flex; font-family: Inter, 'Segoe UI', system-ui, sans-serif; color: {{t.text}}; font-size: 14px; line-height: 1.4">
+
+<sc-if value="{{is.collapsed}}" hint-placeholder-val="{{ false }}">
+<button class="fv" onClick="{{openHome}}" aria-label="{{pillLabel}}" style="box-sizing: border-box; margin: 0; border: none; font: inherit; color: inherit; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; width: {{w}}px; height: 40px; padding: 0 16px 0 8px; border-radius: 20px; background: {{pillSurface}}; box-shadow: {{shellShadow}}; backdrop-filter: {{blurCss}}; -webkit-backdrop-filter: {{blurCss}}; position: relative; overflow: hidden">
+  <sc-if value="{{is.idle}}" hint-placeholder-val="{{ false }}">
+    <dc-import name="Mascot" mood="idle" size="24" theme="{{theme}}" hint-size="24px,24px"></dc-import>
+    <span style="flex: 1"></span>
+    <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: {{muted}}"></span>
+  </sc-if>
+  <sc-if value="{{is.status}}" hint-placeholder-val="{{ false }}">
+    <dc-import name="Mascot" mood="{{st.mood}}" size="24" theme="{{theme}}" hint-size="24px,24px"></dc-import>
+    <span style="display: flex; align-items: center; gap: 4px; color: {{st.color}}; flex: none">
+      <dc-import name="Icon" icon="{{st.icon}}" size="16" hint-size="16px,16px"></dc-import>
+      <span style="font-size: 12px; font-weight: 600">{{st.word}}</span>
+    </span>
+    <span style="flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{st.text}}</span>
+    <span style="font-size: 12px; color: {{muted}}; flex: none; font-variant-numeric: tabular-nums">{{st.meta}}</span>
+  </sc-if>
+  <sc-if value="{{is.music}}" hint-placeholder-val="{{ false }}">
+    <span aria-hidden="true" style="width: 24px; height: 24px; border-radius: 6px; flex: none; background: {{t.art1}}; position: relative; overflow: hidden"><span style="position: absolute; width: 16px; height: 16px; border-radius: 8px; right: -4px; bottom: -4px; background: {{t.art2}}"></span></span>
+    <span style="flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"><span style="font-weight: 600">Low Tide</span><span style="color: {{muted}}"> · Marlo Vey</span></span>
+    <span style="color: {{t.accent}}; display: flex"><dc-import name="Icon" icon="eq" size="16" hint-size="16px,16px"></dc-import></span>
+    <span aria-hidden="true" style="position: absolute; left: 16px; right: 16px; bottom: 4px; height: 2px; border-radius: 1px; background: {{t.track}}"><span style="display: block; width: 38%; height: 2px; border-radius: 1px; background: {{t.accent}}"></span></span>
+  </sc-if>
+  <sc-if value="{{is.timer}}" hint-placeholder-val="{{ false }}">
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="9" fill="none" stroke="{{t.track}}" stroke-width="3"></circle><circle cx="12" cy="12" r="9" fill="none" stroke="{{t.accent}}" stroke-width="3" stroke-linecap="round" stroke-dasharray="54.8 56.55" transform="rotate(-90 12 12)"></circle></svg>
+    <span style="font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums">24:13</span>
+    <span style="font-size: 12px; color: {{muted}}">Focus</span>
+  </sc-if>
+</button>
+</sc-if>
+
+<sc-if value="{{is.peek}}" hint-placeholder-val="{{ false }}">
+<div role="dialog" aria-label="{{peekLabel}}" style="box-sizing: border-box; width: 440px; padding: 16px; border-radius: 28px; display: flex; flex-direction: column; gap: 16px; background: {{peekSurface}}; box-shadow: {{shellShadow}}; backdrop-filter: {{blurCss}}; -webkit-backdrop-filter: {{blurCss}}">
+  <sc-if value="{{is.perm}}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; gap: 16px; align-items: flex-start">
+      <dc-import name="Mascot" mood="curious" size="40" theme="{{theme}}" hint-size="40px,40px"></dc-import>
+      <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1">
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: {{t.accentText}}"><dc-import name="Icon" icon="alert" size="16" hint-size="16px,16px"></dc-import><span>Permission needed</span></div>
+        <div style="font-size: 16px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all">{{permTitle}}</div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: {{t.muted}}; min-width: 0"><dc-import name="Icon" icon="folder" size="16" hint-size="16px,16px"></dc-import><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{permFolder}}</span></div>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <button class="fv" onClick="{{deny}}" style="height: 44px; margin: 0; border: none; border-radius: 12px; background: {{t.btnSecondary}}; color: {{t.text}}; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer"><dc-import name="Icon" icon="x" size="16" hint-size="16px,16px"></dc-import>Deny</button>
+      <button class="fv" onClick="{{allow}}" style="height: 44px; margin: 0; border: none; border-radius: 12px; background: {{t.accent}}; color: {{t.accentInk}}; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer"><dc-import name="Icon" icon="check" size="16" hint-size="16px,16px"></dc-import>Allow</button>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 12px; color: {{t.muted}}; text-align: center"><span>Esc</span><span>Enter</span></div>
+  </sc-if>
+  <sc-if value="{{is.finished}}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; gap: 16px; align-items: flex-start">
+      <dc-import name="Mascot" mood="happy" size="40" theme="{{theme}}" hint-size="40px,40px"></dc-import>
+      <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1">
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: {{t.done}}"><dc-import name="Icon" icon="check" size="16" hint-size="16px,16px"></dc-import><span>Done</span></div>
+        <div style="font-size: 16px; font-weight: 600">Task finished</div>
+        <div style="font-size: 13px; color: {{t.muted}}">Added the focus module and fixed the timer reset. 3 files changed, tests pass.</div>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <button class="fv" onClick="{{dismiss}}" style="height: 44px; margin: 0; border: none; border-radius: 12px; background: {{t.btnSecondary}}; color: {{t.text}}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Dismiss</button>
+      <button class="fv" onClick="{{viewAnswer}}" style="height: 44px; margin: 0; border: none; border-radius: 12px; background: {{t.accent}}; color: {{t.accentInk}}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">View answer</button>
+    </div>
+  </sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{is.expanded}}" hint-placeholder-val="{{ true }}">
+<div role="region" aria-label="Atoll" style="box-sizing: border-box; width: 720px; height: 440px; padding: 16px; border-radius: 32px; display: flex; flex-direction: column; gap: 8px; background: {{surface}}; box-shadow: {{shellShadow}}; backdrop-filter: {{blurCss}}; -webkit-backdrop-filter: {{blurCss}}">
+  <div style="display: flex; align-items: center; gap: 8px; height: 40px; flex: none">
+    <div style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px 0 8px; border-radius: 20px; background: {{shellPlate}}">
+      <dc-import name="Mascot" mood="{{homeMood}}" size="24" theme="{{theme}}" hint-size="24px,24px"></dc-import>
+      <span style="font-size: 14px; font-weight: 600">Atoll</span>
+      <span style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: {{t.busy}}"><dc-import name="Icon" icon="busy" size="16" hint-size="16px,16px"></dc-import>Busy</span>
+    </div>
+    <span style="flex: 1"></span>
+    <button class="fv" aria-label="Settings" style="width: 40px; height: 40px; margin: 0; border: none; border-radius: 20px; background: {{iconBtnBg}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="settings" size="20" hint-size="20px,20px"></dc-import></button>
+    <button class="fv" aria-label="Collapse" onClick="{{collapse}}" style="width: 40px; height: 40px; margin: 0; border: none; border-radius: 20px; background: {{iconBtnBg}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="chevronUp" size="20" hint-size="20px,20px"></dc-import></button>
+    <button class="fv" aria-label="Quit Atoll" style="width: 40px; height: 40px; margin: 0; border: none; border-radius: 20px; background: {{iconBtnBg}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="power" size="20" hint-size="20px,20px"></dc-import></button>
+  </div>
+  <div role="tablist" aria-label="Modules" style="display: flex; align-items: center; gap: 4px; flex: none; align-self: flex-start; padding: 2px; border-radius: 20px; background: {{shellPlate}}">
+    <sc-for list="{{tabs}}" as="tab" hint-placeholder-count="9">
+      <button class="fv" role="tab" aria-selected="{{tab.active}}" aria-label="{{tab.label}}" onClick="{{tab.go}}" style="height: 36px; min-width: 36px; margin: 0; border: none; border-radius: 18px; font: inherit; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; padding: {{tab.pad}}; background: {{tab.bg}}; color: {{tab.color}}">
+        <dc-import name="Icon" icon="{{tab.icon}}" size="16" hint-size="16px,16px"></dc-import>
+        <sc-if value="{{tab.active}}" hint-placeholder-val="{{ false }}"><span>{{tab.label}}</span></sc-if>
+      </button>
+    </sc-for>
+  </div>
+  <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; margin-top: 8px">
+
+    <sc-if value="{{is.home}}" hint-placeholder-val="{{ true }}">
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; flex: 1">
+        <div style="border-radius: 16px; padding: 16px; background: {{cardBg}}; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: {{muted}}"><span>Agent</span><span style="display: flex; align-items: center; gap: 4px; font-weight: 600; color: {{t.busy}}"><dc-import name="Icon" icon="busy" size="16" hint-size="16px,16px"></dc-import>Busy</span></div>
+          <div style="font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Editing island/peek.tsx</div>
+          <span style="flex: 1"></span>
+          <div style="font-size: 12px; color: {{muted}}">Started 4 min ago · 6 actions</div>
+        </div>
+        <div style="border-radius: 16px; padding: 16px; background: {{cardBg}}; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+          <div style="font-size: 12px; color: {{muted}}">Now playing · Spotify</div>
+          <div style="display: flex; gap: 16px; align-items: center">
+            <span aria-hidden="true" style="width: 48px; height: 48px; border-radius: 12px; flex: none; background: {{t.art1}}; position: relative; overflow: hidden"><span style="position: absolute; width: 32px; height: 32px; border-radius: 16px; right: -8px; bottom: -8px; background: {{t.art2}}"></span></span>
+            <div style="min-width: 0"><div style="font-size: 14px; font-weight: 600">Low Tide</div><div style="font-size: 13px; color: {{muted}}">Marlo Vey</div></div>
+          </div>
+          <span style="flex: 1"></span>
+          <span aria-hidden="true" style="height: 4px; border-radius: 2px; background: {{t.track}}"><span style="display: block; width: 38%; height: 4px; border-radius: 2px; background: {{t.accent}}"></span></span>
+        </div>
+        <div style="border-radius: 16px; padding: 16px; background: {{cardBg}}; display: flex; gap: 16px; align-items: center; min-width: 0">
+          <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true" style="flex: none"><circle cx="28" cy="28" r="23" fill="none" stroke="{{t.track}}" stroke-width="6"></circle><circle cx="28" cy="28" r="23" fill="none" stroke="{{t.accent}}" stroke-width="6" stroke-linecap="round" stroke-dasharray="108 144.5" transform="rotate(-90 28 28)"></circle></svg>
+          <div><div style="font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums">18:42</div><div style="font-size: 12px; color: {{muted}}">Focus 2 of 4</div></div>
+        </div>
+        <div style="border-radius: 16px; padding: 16px; background: {{cardBg}}; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+          <div style="font-size: 12px; color: {{muted}}">Last copy</div>
+          <div style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="color: {{muted}}; display: flex"><dc-import name="Icon" icon="text" size="16" hint-size="16px,16px"></dc-import></span><span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">npm install --save-dev vitest</span></div>
+          <span style="flex: 1"></span>
+          <div style="font-size: 12px; color: {{muted}}">Text · 2 min ago</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{is.genericEmpty}}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; border-radius: 16px; background: {{cardBg}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 24px">
+        <dc-import name="Mascot" mood="idle" size="64" theme="{{theme}}" hint-size="64px,64px"></dc-import>
+        <div style="font-size: 16px; font-weight: 600; margin-top: 8px">{{emptyTitle}}</div>
+        <div style="font-size: 13px; color: {{muted}}; max-width: 360px">{{emptyHint}}</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{is.agent}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; gap: 16px; flex: 1; min-height: 0">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 12px; background: {{cardBg}}; min-width: 0">
+            <span style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: {{t.busy}}; flex: none"><dc-import name="Icon" icon="busy" size="16" hint-size="16px,16px"></dc-import>Busy</span>
+            <span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Editing src/island/peek.tsx</span>
+          </div>
+          <div style="font-size: 12px; font-weight: 600; color: {{muted}}; margin-top: 8px">Live activity</div>
+          <div style="display: flex; flex-direction: column; gap: 4px; border-radius: 12px; background: {{cardBg}}; padding: 8px">
+            <sc-for list="{{activity}}" as="a" hint-placeholder-count="5">
+              <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; min-width: 0">
+                <span style="color: {{muted}}; display: flex"><dc-import name="Icon" icon="{{a.icon}}" size="16" hint-size="16px,16px"></dc-import></span>
+                <span style="font-size: 13px; font-weight: 600; flex: none; width: 48px">{{a.verb}}</span>
+                <span style="font-size: 13px; color: {{muted}}; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{a.target}}</span>
+                <span style="font-size: 12px; color: {{muted}}; font-variant-numeric: tabular-nums">{{a.time}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="width: 216px; flex: none; display: flex; flex-direction: column; gap: 8px">
+          <div style="border-radius: 16px; padding: 16px; background: {{cardBg}}; display: flex; gap: 16px; align-items: center">
+            <svg width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="{{ring.aria}}" style="flex: none"><circle cx="40" cy="40" r="34" fill="none" stroke="{{t.track}}" stroke-width="8" stroke-dasharray="{{ring.trackDash}}"></circle><circle cx="40" cy="40" r="34" fill="none" stroke="{{ring.color}}" stroke-width="8" stroke-linecap="round" stroke-dasharray="{{ring.dash}}" transform="rotate(-90 40 40)"></circle><text x="40" y="45" text-anchor="middle" font-size="16" font-weight="600" fill="{{t.text}}" font-family="Inter, sans-serif">{{ring.value}}</text></svg>
+            <div style="min-width: 0"><div style="font-size: 13px; font-weight: 600">5-hour limit</div><div style="font-size: 12px; color: {{muted}}">{{ring.caption}}</div></div>
+          </div>
+          <div style="font-size: 12px; font-weight: 600; color: {{muted}}; margin-top: 8px">History</div>
+          <div style="border-radius: 12px; background: {{cardBg}}; padding: 8px; display: flex; flex-direction: column; gap: 4px">
+            <sc-for list="{{history}}" as="h" hint-placeholder-count="3">
+              <div style="padding: 4px 8px; min-width: 0">
+                <div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{h.title}}</div>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: {{h.color}}"><dc-import name="Icon" icon="{{h.icon}}" size="16" hint-size="16px,16px"></dc-import><span style="font-weight: 600">{{h.word}}</span><span style="color: {{muted}}">· {{h.when}}</span></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{is.player}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; gap: 24px; flex: 1; align-items: center">
+        <div aria-hidden="true" style="width: 200px; height: 200px; border-radius: 20px; flex: none; position: relative; overflow: hidden; background: {{pl.art1}}"><span style="position: absolute; width: 140px; height: 140px; border-radius: 70px; right: -32px; bottom: -32px; background: {{pl.art2}}"></span><span style="position: absolute; width: 64px; height: 64px; border-radius: 32px; left: 32px; top: 32px; background: {{t.art3}}"></span></div>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: {{muted}}"><dc-import name="Icon" icon="{{pl.icon}}" size="16" hint-size="16px,16px"></dc-import>{{pl.source}}</div>
+          <div style="font-size: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{pl.title}}</div>
+          <div style="font-size: 14px; color: {{muted}}">{{pl.artist}}</div>
+          <div style="margin-top: 8px; position: relative; height: 16px; display: flex; align-items: center" role="slider" aria-label="Playback position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="38" tabindex="0" class="fv">
+            <span style="flex: 1; height: 4px; border-radius: 2px; background: {{t.track}}"><span style="display: block; width: 38%; height: 4px; border-radius: 2px; background: {{t.accent}}"></span></span>
+            <span style="position: absolute; left: 38%; width: 12px; height: 12px; margin-left: -6px; border-radius: 6px; background: {{t.text}}"></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: {{muted}}; font-variant-numeric: tabular-nums"><span>{{pl.pos}}</span><span>{{pl.len}}</span></div>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 16px">
+            <button class="fv" aria-label="Previous" style="width: 44px; height: 44px; margin: 0; border: none; border-radius: 22px; background: {{iconBtnBg}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="prev" size="20" hint-size="20px,20px"></dc-import></button>
+            <button class="fv" aria-label="{{playLabel}}" onClick="{{togglePlay}}" style="width: 56px; height: 56px; margin: 0; border: none; border-radius: 28px; background: {{t.accent}}; color: {{t.accentInk}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="{{playIcon}}" size="24" hint-size="24px,24px"></dc-import></button>
+            <button class="fv" aria-label="Next" style="width: 44px; height: 44px; margin: 0; border: none; border-radius: 22px; background: {{iconBtnBg}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="next" size="20" hint-size="20px,20px"></dc-import></button>
+          </div>
+          <sc-if value="{{is.spotify}}" hint-placeholder-val="{{ false }}">
+            <div role="radiogroup" aria-label="Play on device" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 20px; background: {{cardBg}}">
+              <sc-for list="{{devices}}" as="dv" hint-placeholder-count="3">
+                <button class="fv" role="radio" aria-checked="{{dv.active}}" onClick="{{dv.pick}}" style="height: 36px; margin: 0; border: none; border-radius: 16px; font: inherit; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; background: {{dv.bg}}; color: {{dv.color}}"><dc-import name="Icon" icon="{{dv.icon}}" size="16" hint-size="16px,16px"></dc-import>{{dv.label}}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{is.clipboard}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px">
+        <span style="font-size: 14px; font-weight: 600">Recent copies</span><span style="font-size: 12px; color: {{muted}}">12 items</span>
+        <span style="flex: 1"></span>
+        <button class="fv" onClick="{{togglePause}}" style="height: 36px; padding: 0 16px; margin: 0; border: none; border-radius: 18px; background: {{t.btnSecondary}}; color: {{t.text}}; font: inherit; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer"><dc-import name="Icon" icon="{{pauseIcon}}" size="16" hint-size="16px,16px"></dc-import>{{pauseLabel}}</button>
+        <button class="fv" style="height: 36px; padding: 0 16px; margin: 0; border: none; border-radius: 18px; background: {{t.btnSecondary}}; color: {{t.text}}; font: inherit; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer"><dc-import name="Icon" icon="trash" size="16" hint-size="16px,16px"></dc-import>Clear</button>
+      </div>
+      <div role="list" style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 8px">
+        <sc-for list="{{clips}}" as="c" hint-placeholder-count="5">
+          <div role="listitem" style="display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 16px 8px 8px; box-sizing: border-box; border-radius: 12px; background: {{cardBg}}">
+            <span style="width: 40px; height: 40px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; background: {{c.tile}}; color: {{t.text}}"><dc-import name="Icon" icon="{{c.icon}}" size="20" hint-size="20px,20px"></dc-import></span>
+            <div style="min-width: 0; flex: 1"><div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.title}}</div><div style="font-size: 12px; color: {{muted}}">{{c.meta}}</div></div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{is.whiteboard}}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; border-radius: 16px; border: 2px dashed {{t.dash}}; background: {{wbBg}}; position: relative; display: flex; align-items: center; justify-content: center">
+        <span style="position: absolute; left: 16px; top: 16px; height: 28px; padding: 0 12px; border-radius: 14px; border: 1px solid {{t.accentText}}; color: {{t.accentText}}; font-size: 12px; font-weight: 600; display: flex; align-items: center">Layout to be confirmed</span>
+        <div style="width: 240px; padding: 24px 16px; border-radius: 16px; background: {{cardBg}}; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center">
+          <span style="color: {{muted}}; display: flex"><dc-import name="Icon" icon="whiteboard" size="24" hint-size="24px,24px"></dc-import></span>
+          <div style="font-size: 14px; font-weight: 600">Whiteboard</div>
+          <div style="font-size: 12px; color: {{muted}}">Behaviour not yet described. Placeholder only.</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{is.files}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; gap: 16px; flex: 1; min-height: 0">
+        <div style="width: {{dropW}}; flex: none; box-sizing: border-box; border-radius: 16px; border: 2px dashed {{t.dash}}; background: {{wbBg}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 16px; flex-grow: {{dropGrow}}">
+          <span style="color: {{t.accentText}}; display: flex"><dc-import name="Icon" icon="upload" size="24" hint-size="24px,24px"></dc-import></span>
+          <div style="font-size: 14px; font-weight: 600">{{dropTitle}}</div>
+          <div style="font-size: 12px; color: {{muted}}">Drag files onto the island</div>
+        </div>
+        <sc-if value="{{hasFiles}}" hint-placeholder-val="{{ true }}">
+          <div role="list" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+            <sc-for list="{{files}}" as="f" hint-placeholder-count="3">
+              <div role="listitem" style="display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 8px; border-radius: 12px; background: {{cardBg}}; min-width: 0">
+                <span style="width: 40px; height: 40px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; background: {{t.btnSecondary}}"><dc-import name="Icon" icon="{{f.icon}}" size="20" hint-size="20px,20px"></dc-import></span>
+                <div style="min-width: 0; flex: 1"><div style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{f.name}}</div><div style="font-size: 12px; color: {{muted}}">{{f.meta}}</div></div>
+                <button class="fv" aria-label="{{f.remove}}" style="width: 40px; height: 40px; margin: 0; border: none; border-radius: 20px; background: transparent; color: {{t.text}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><dc-import name="Icon" icon="x" size="16" hint-size="16px,16px"></dc-import></button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{is.note}}" hint-placeholder-val="{{ false }}">
+      <label for="atoll-note" style="font-size: 12px; font-weight: 600; color: {{muted}}; margin-bottom: 8px">Quick note</label>
+      <textarea id="atoll-note" class="fv" placeholder="Type a note. It is kept until you clear it." style="flex: 1; resize: none; box-sizing: border-box; border: none; border-radius: 16px; padding: 16px; background: {{cardBg}}; color: {{t.text}}; font: inherit; font-size: 14px; line-height: 1.6">{{noteText}}</textarea>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; color: {{muted}}; margin-top: 8px"><span>{{noteStatus}}</span><span>{{noteCount}}</span></div>
+    </sc-if>
+
+    <sc-if value="{{is.focus}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; gap: 32px; align-items: center; flex: 1; padding: 0 16px">
+        <svg width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="{{fc.aria}}" style="flex: none"><circle cx="100" cy="100" r="88" fill="none" stroke="{{t.track}}" stroke-width="12"></circle><circle cx="100" cy="100" r="88" fill="none" stroke="{{fc.color}}" stroke-width="12" stroke-linecap="round" stroke-dasharray="{{fc.dash}}" transform="rotate(-90 100 100)"></circle><text x="100" y="104" text-anchor="middle" font-size="40" font-weight="600" fill="{{t.text}}" font-family="Inter, sans-serif">{{fc.time}}</text><text x="100" y="132" text-anchor="middle" font-size="13" fill="{{muted}}" font-family="Inter, sans-serif">{{fc.sub}}</text></svg>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: {{fc.wordColor}}"><dc-import name="Icon" icon="{{fc.icon}}" size="20" hint-size="20px,20px"></dc-import>{{fc.word}}</div>
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: {{muted}}; margin-bottom: 8px">Presets (focus / break minutes)</div>
+            <div role="radiogroup" aria-label="Timer preset" style="display: flex; gap: 8px">
+              <sc-for list="{{presets}}" as="p" hint-placeholder-count="3">
+                <button class="fv" role="radio" aria-checked="{{p.active}}" onClick="{{p.pick}}" style="height: 36px; padding: 0 16px; margin: 0; border-radius: 18px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; font-variant-numeric: tabular-nums; border: {{p.border}}; background: {{p.bg}}; color: {{p.color}}">{{p.label}}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px">
+            <button class="fv" style="height: 44px; padding: 0 24px; margin: 0; border: none; border-radius: 12px; background: {{t.accent}}; color: {{t.accentInk}}; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer"><dc-import name="Icon" icon="{{fc.primaryIcon}}" size="16" hint-size="16px,16px"></dc-import>{{fc.primary}}</button>
+            <button class="fv" style="height: 44px; padding: 0 24px; margin: 0; border: none; border-radius: 12px; background: {{t.btnSecondary}}; color: {{t.text}}; font: inherit; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer"><dc-import name="Icon" icon="reset" size="16" hint-size="16px,16px"></dc-import>Reset</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"view":{"editor":"enum","options":["idle","busy","busy-long","done","error","music","timer","perm","perm-long","finished","home","agent","agent-na","spotify","media","clipboard","whiteboard","files","note","focus","focus-break"],"default":"home"},"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"empty":{"editor":"boolean","default":false},"opacity":{"editor":"enum","options":["1","0.85","0.7","0.5","0.3"],"default":"0.85"},"blur":{"editor":"boolean","default":true},"onNav":{"editor":null},"$preview":{"width":760,"height":480}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { playing: true, paused: false, device: 'laptop', preset: '25' }; }
+  renderVals() {
+    const P = this.props;
+    const view = P.view ?? 'home';
+    const theme = P.theme ?? 'dark';
+    const empty = P.empty === true || P.empty === 'true';
+    const a = Math.max(0, Math.min(1, parseFloat(P.opacity ?? '0.85')));
+    const blurOn = !(P.blur === false || P.blur === 'false');
+    const D = { tint: '16,16,21', tintHex: '#101015', raisedA: 'rgba(255,255,255,0.07)', track: 'rgba(255,255,255,0.16)', text: '#F4F4F7', muted: '#A9A9B5', accent: '#8FA3FF', accentText: '#A9B8FF', accentInk: '#0E0E12', btnSecondary: '#2A2A33', busy: '#F5B947', done: '#45D68E', error: '#FF7A7A', dash: 'rgba(255,255,255,0.28)', hair: 'rgba(255,255,255,0.10)', top: 'rgba(255,255,255,0.08)', drop: '0 16px 40px rgba(0,0,0,0.45)', art1: '#34407A', art2: '#E0915A', art3: '#2E8C84' };
+    const L = { tint: '252,252,253', tintHex: '#FCFCFD', raisedA: 'rgba(20,20,30,0.05)', track: 'rgba(20,20,30,0.14)', text: '#141419', muted: '#55555F', accent: '#3A55D6', accentText: '#3048C2', accentInk: '#FFFFFF', btnSecondary: '#E6E6EC', busy: '#8A4B00', done: '#0B6638', error: '#A82020', dash: 'rgba(20,20,30,0.28)', hair: 'rgba(20,20,30,0.10)', top: 'rgba(255,255,255,0.9)', drop: '0 16px 40px rgba(20,20,40,0.18)', art1: '#5B6BD8', art2: '#F0A46A', art3: '#3FA79C' };
+    const t = theme === 'light' ? L : D;
+    const tint = (x) => 'rgba(' + t.tint + ',' + x.toFixed(3) + ')';
+    const pillHasText = ['busy', 'busy-long', 'done', 'error', 'music', 'timer'].indexOf(view) >= 0;
+    const low = (pillHasText ? Math.max(a, 0.85) : a) < 0.85;
+    const plateA = low ? 1 - 0.15 / (1 - a) : 0;
+    const shellNeedsPlate = low;
+    const muted = low ? t.text : t.muted;
+    const base = t.drop + ', inset 0 1px 0 ' + t.top + ', inset 0 0 0 1px ' + t.hair;
+    const glow = (c) => '0 0 0 2px ' + c + ', 0 0 0 3.5px ' + t.tintHex + ', 0 0 28px 4px ' + c + '8C, ' + base;
+    const nav = (v) => { if (typeof P.onNav === 'function') P.onNav(v); };
+    const collapsedViews = { idle: 1, busy: 1, 'busy-long': 1, done: 1, error: 1, music: 1, timer: 1 };
+    const peekViews = { perm: 1, 'perm-long': 1, finished: 1 };
+    const isCollapsed = !!collapsedViews[view];
+    const isPeek = !!peekViews[view];
+    const isExpanded = !isCollapsed && !isPeek;
+    const mod = view === 'agent-na' ? 'agent' : view === 'focus-break' ? 'focus' : view;
+    const ST = {
+      busy: { mood: 'focused', icon: 'busy', word: 'Busy', color: t.busy, text: 'Editing island/peek.tsx', meta: '0:42' },
+      'busy-long': { mood: 'focused', icon: 'busy', word: 'Busy', color: t.busy, text: 'Editing …/ClipboardHistory.tsx', meta: '1:07' },
+      done: { mood: 'happy', icon: 'check', word: 'Done', color: t.done, text: '3 files changed, tests pass', meta: '' },
+      error: { mood: 'idle', icon: 'alert', word: 'Error', color: t.error, text: 'npm test failed, exit code 1', meta: '' }
+    };
+    const st = ST[view] || ST.busy;
+    let shellShadow = base;
+    if (view === 'busy' || view === 'busy-long') shellShadow = glow(t.busy);
+    if (view === 'done' || view === 'finished') shellShadow = glow(t.done);
+    if (view === 'error') shellShadow = glow(t.error);
+    if (view === 'perm' || view === 'perm-long') shellShadow = glow(t.accent);
+    const widths = { idle: 128, busy: 384, 'busy-long': 384, done: 384, error: 384, music: 384, timer: 168 };
+    const genericEmpty = empty && (mod === 'agent' || mod === 'spotify' || mod === 'media' || mod === 'clipboard');
+    const tabDefs = [['home', 'Home', 'home'], ['agent', 'Agent', 'agent'], ['spotify', 'Spotify', 'music'], ['media', 'Media', 'media'], ['clipboard', 'Clipboard', 'clipboard'], ['whiteboard', 'Whiteboard', 'whiteboard'], ['files', 'Files', 'folder'], ['note', 'Note', 'note'], ['focus', 'Focus', 'focus']];
+    const tabs = tabDefs.map(([id, label, icon]) => {
+      const on = mod === id;
+      return { id, label, icon, active: on, go: () => nav(id), pad: on ? '0 16px 0 12px' : '0', bg: on ? (theme === 'light' ? '#FFFFFF' : '#33333D') : 'transparent', color: on ? t.text : muted };
+    });
+    const EMPTY = {
+      agent: ['No agent session yet', 'Start Claude Code in a terminal. Its activity, status and usage appear here.'],
+      spotify: ['Nothing playing on Spotify', 'Start a track on any of your devices to control it here.'],
+      media: ['No other player is active', 'Play audio or video in another app or a browser tab to control it here.'],
+      clipboard: ['Clipboard history is empty', 'Copy text, an image or a file and it will appear here.']
+    };
+    const em = EMPTY[mod] || ['', ''];
+    const unavailable = view === 'agent-na';
+    const ring = unavailable
+      ? { color: 'transparent', dash: '0 214', trackDash: '6 6', value: 'N/A', caption: 'Usage not available', aria: 'Usage not available' }
+      : { color: t.accent, dash: '132.5 213.6', trackDash: 'none', value: '62%', caption: 'Resets in 1 h 48 m', aria: '62 percent of the 5-hour limit used' };
+    const isBreak = view === 'focus-break';
+    const fEmpty = empty && mod === 'focus';
+    const fc = fEmpty
+      ? { color: t.accent, dash: '552.9 552.9', time: '25:00', sub: 'Ready', word: 'Not started', icon: 'focus', wordColor: t.text, primary: 'Start', primaryIcon: 'play', aria: 'Timer ready, 25 minutes' }
+      : isBreak
+        ? { color: t.done, dash: '464.4 552.9', time: '4:12', sub: 'Break', word: 'Break', icon: 'coffee', wordColor: t.done, primary: 'Skip break', primaryIcon: 'next', aria: 'Break, 4 minutes 12 seconds left' }
+        : { color: t.accent, dash: '413.6 552.9', time: '18:42', sub: 'Focus 2 of 4', word: 'Focus running', icon: 'focus', wordColor: t.accentText, primary: 'Pause', primaryIcon: 'pause', aria: 'Focus, 18 minutes 42 seconds left' };
+    const presets = [['25', '25 / 5'], ['50', '50 / 10'], ['90', '90 / 15']].map(([id, label]) => {
+      const on = this.state.preset === id;
+      return { label, active: on, pick: () => this.setState({ preset: id }), border: on ? '2px solid ' + t.accent : '2px solid transparent', bg: on ? (theme === 'light' ? '#EEF1FF' : '#262B45') : t.btnSecondary, color: t.text };
+    });
+    const devices = [['phone', 'Phone', 'phone'], ['laptop', 'Laptop', 'laptop'], ['speaker', 'Speaker', 'speaker']].map(([id, label, icon]) => {
+      const on = this.state.device === id;
+      return { label, icon, active: on, pick: () => this.setState({ device: id }), bg: on ? (theme === 'light' ? '#FFFFFF' : '#33333D') : 'transparent', color: on ? t.text : muted };
+    });
+    const isMedia = mod === 'media';
+    const pl = isMedia
+      ? { source: 'Media · Browser tab', icon: 'media', title: 'Episode 12: Light in the Deep Sea', artist: 'The Slow Science Podcast', pos: '12:05', len: '41:30', art1: '#2E5E6E', art2: '#C7B25A' }
+      : { source: 'Spotify', icon: 'music', title: 'Low Tide', artist: 'Marlo Vey · Harbour Lights', pos: '1:24', len: '3:41', art1: t.art1, art2: t.art2 };
+    const filesEmpty = empty && mod === 'files';
+    const noteEmpty = empty && mod === 'note';
+    return {
+      t, theme, muted,
+      surface: tint(a),
+      pillSurface: tint(view === 'idle' ? a : Math.max(a, 0.85)),
+      peekSurface: tint(1),
+      blurCss: blurOn ? 'blur(24px) saturate(140%)' : 'none',
+      shellShadow,
+      cardBg: low ? tint(plateA) : t.raisedA,
+      shellPlate: shellNeedsPlate ? tint(plateA) : 'transparent',
+      iconBtnBg: low ? tint(Math.max(plateA, 0.6)) : t.raisedA,
+      wbBg: low ? tint(plateA) : 'transparent',
+      w: widths[view] || 128,
+      is: {
+        collapsed: isCollapsed, peek: isPeek, expanded: isExpanded,
+        idle: view === 'idle', status: !!ST[view], music: view === 'music', timer: view === 'timer',
+        perm: view === 'perm' || view === 'perm-long', finished: view === 'finished',
+        home: mod === 'home', genericEmpty,
+        agent: mod === 'agent' && !empty,
+        player: (mod === 'spotify' || mod === 'media') && !empty, spotify: mod === 'spotify',
+        clipboard: mod === 'clipboard' && !empty,
+        whiteboard: mod === 'whiteboard', files: mod === 'files', note: mod === 'note', focus: mod === 'focus'
+      },
+      st,
+      pillLabel: view === 'idle' ? 'Atoll, idle. Open' : view === 'music' ? 'Now playing Low Tide by Marlo Vey. Open' : view === 'timer' ? 'Focus timer, 24 minutes 13 seconds left. Open' : 'Agent ' + st.word + ': ' + st.text + '. Open',
+      peekLabel: view === 'finished' ? 'Task finished' : 'Permission request',
+      permTitle: view === 'perm-long' ? 'Run npm run build:island -- --filter @atoll/island --sourcemap --watch --verbose' : 'Run npm install',
+      permFolder: view === 'perm-long' ? 'C:\\Users\\JC\\…\\atoll\\packages\\island' : 'C:\\Users\\JC\\Projects\\atoll',
+      homeMood: 'focused',
+      tabs,
+      emptyTitle: em[0], emptyHint: em[1],
+      ring,
+      activity: [
+        { icon: 'edit', verb: 'Edited', target: 'src/island/peek.tsx  +12 −3', time: '14:32' },
+        { icon: 'read', verb: 'Read', target: 'src/island/tokens.ts', time: '14:31' },
+        { icon: 'terminal', verb: 'Ran', target: 'npm test -- peek', time: '14:30' },
+        { icon: 'read', verb: 'Read', target: 'package.json', time: '14:29' },
+        { icon: 'edit', verb: 'Edited', target: 'src/island/Island.tsx  +40 −8', time: '14:27' }
+      ],
+      history: [
+        { title: 'Fix focus timer reset', icon: 'check', word: 'Done', when: '1 h ago', color: t.done },
+        { title: 'Add clipboard pause', icon: 'check', word: 'Done', when: 'Yesterday', color: t.done },
+        { title: 'Refactor tray menu', icon: 'alert', word: 'Error', when: 'Yesterday', color: t.error }
+      ],
+      pl, devices, presets, fc,
+      playIcon: this.state.playing ? 'pause' : 'play',
+      playLabel: this.state.playing ? 'Pause' : 'Play',
+      togglePlay: () => this.setState({ playing: !this.state.playing }),
+      pauseIcon: this.state.paused ? 'play' : 'pauseLine',
+      pauseLabel: this.state.paused ? 'Resume' : 'Pause',
+      togglePause: () => this.setState({ paused: !this.state.paused }),
+      clips: [
+        { icon: 'text', title: 'npm install --save-dev vitest', meta: 'Text · 2 min ago', tile: t.btnSecondary },
+        { icon: 'image', title: 'Screenshot 1280 × 720', meta: 'Image · 6 min ago', tile: theme === 'light' ? '#DCE3FF' : '#2B3460' },
+        { icon: 'file', title: 'Science Unit 8 notes.pdf', meta: 'File · 2.4 MB · 20 min ago', tile: t.btnSecondary },
+        { icon: 'text', title: 'This house would ban homework', meta: 'Text · 1 h ago', tile: t.btnSecondary },
+        { icon: 'file', title: 'atoll-mascot-draft.svg', meta: 'File · 18 KB · Yesterday', tile: t.btnSecondary },
+        { icon: 'text', title: 'Meet at the library at 3', meta: 'Text · Yesterday', tile: t.btnSecondary }
+      ],
+      files: [
+        { icon: 'file', name: 'Penang Agrotech business…v3 (1).docx', meta: 'Word document · 1.2 MB', remove: 'Remove Penang Agrotech business plan final v3 (1).docx' },
+        { icon: 'image', name: 'island-states.png', meta: 'PNG image · 840 KB', remove: 'Remove island-states.png' },
+        { icon: 'file', name: 'Debate notes Friday.pdf', meta: 'PDF · 320 KB', remove: 'Remove Debate notes Friday.pdf' }
+      ],
+      hasFiles: !filesEmpty,
+      dropW: filesEmpty ? 'auto' : '240px',
+      dropGrow: filesEmpty ? '1' : '0',
+      dropTitle: filesEmpty ? 'The tray is empty' : 'Drop files here',
+      noteText: noteEmpty ? '' : 'Ask about the debate motion for Friday.\nFinish Science Unit 8 recall, sections 8.2 and 8.3.\nBuy A4 binder.',
+      noteStatus: noteEmpty ? 'Empty' : 'Saved',
+      noteCount: noteEmpty ? '0 characters' : '114 characters',
+      openHome: () => nav('home'),
+      collapse: () => nav('idle'),
+      allow: () => nav('idle'),
+      deny: () => nav('idle'),
+      dismiss: () => nav('done'),
+      viewAnswer: () => nav('agent')
+    };
+  }
+}
+</script>
+</body>
+</html>
