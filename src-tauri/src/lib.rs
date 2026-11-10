@@ -58,6 +58,7 @@ mod winclip;
 mod windows;
 // ---- search-clipboard: begin ----
 mod clipintel;
+mod ocr;
 // ---- search-clipboard: end ----
 
 use std::collections::BTreeMap;
