@@ -146,6 +146,12 @@ export interface Settings {
     paused: boolean;
     skipPrivate: boolean;
     encrypt: boolean;
+    // ---- search-clipboard: begin ----
+    detectSecrets: boolean;
+    /** 0 = never */
+    secretExpiryMin: number;
+    ocr: boolean;
+    // ---- search-clipboard: end ----
   };
   /** clearAfterMin: an error or "needs you" clears itself after this many minutes (0 = never). */
   claude: { liveActivity: boolean; askPermissions: boolean; soundOnDone: boolean; popupOnDone: boolean; clearAfterMin: number };

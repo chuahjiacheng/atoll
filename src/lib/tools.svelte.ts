@@ -15,6 +15,16 @@ export interface Clip {
   source: string | null;
   at: number;
   pinned: boolean;
+  /** "link" | "colour" | "json" | "code" */
+  types?: string[];
+  /** "jsonPretty" | "jsonMinify" | "stripTracking" */
+  transforms?: string[];
+  /** What secret the text holds; `text` is then masked. */
+  secret?: string;
+  /** When a secret item is forgotten (ms). */
+  expiresAt?: number;
+  /** Text found in an image. */
+  ocr?: string;
 }
 
 export interface Card {
@@ -87,6 +97,8 @@ export const clipApi = {
   drag: (id: string) => invoke<void>("clipboard_drag", { id }),
   send: (id: string, to: "whiteboard" | "fileTray") => invoke<void>("clipboard_send", { id, to }),
   openFile: (id: string, reveal: boolean) => invoke<void>("clipboard_open_file", { id, reveal }),
+  /** Put a transformed copy on the clipboard ("jsonPretty", "jsonMinify", "stripTracking", "ocrText"). */
+  transform: (id: string, op: string, paste: boolean) => invoke<void>("clipboard_transform", { id, op, paste }),
 };
 
 export type DropTarget = "whiteboard" | "fileTray" | "clipboard";
