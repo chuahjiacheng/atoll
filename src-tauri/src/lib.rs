@@ -56,6 +56,9 @@ mod tray;
 mod usage;
 mod winclip;
 mod windows;
+// ---- search-clipboard: begin ----
+mod clipintel;
+// ---- search-clipboard: end ----
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
