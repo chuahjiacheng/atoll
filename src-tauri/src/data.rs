@@ -69,6 +69,7 @@ pub fn clear_all_data(app: &AppHandle) -> Result<(), String> {
     crate::tray::clear(app);
     crate::tray::note_set(app, "")?;
     crate::spotify::unlink_account(app);
+    crate::recorder::commands::delete_all(app)?; // recorder-forecast: Claude Code history
     Ok(())
 }
 

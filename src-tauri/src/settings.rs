@@ -32,7 +32,27 @@ pub struct Settings {
     pub calendar: Calendar,
     /// Tab order in the expanded island (module keys). Home is always first.
     pub module_order: Vec<String>,
+    // --- recorder-forecast ---
+    pub recorder: Recorder,
+    // --- end recorder-forecast ---
 }
+
+// --- recorder-forecast: flight recorder (docs/contracts/event-store.md §6) ---
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Recorder {
+    /// Keep a local, redacted history of every Claude Code event.
+    pub enabled: bool,
+    /// Delete history older than this many days; 0 = keep forever. 0..=3650.
+    pub retention_days: u32,
+}
+
+impl Default for Recorder {
+    fn default() -> Self {
+        Recorder { enabled: true, retention_days: 30 }
+    }
+}
+// --- end recorder-forecast ---
 
 /// Focus timer (module switch: `modules.focus`). The timer itself runs in
 /// `focus.rs`; the sound at the end of a session is `alerts.timer`.
@@ -497,6 +517,7 @@ impl Default for Settings {
             focus: Focus::default(),
             calendar: Calendar::default(),
             module_order: default_module_order(),
+            recorder: Recorder::default(), // recorder-forecast
         }
     }
 }
@@ -681,6 +702,7 @@ impl Settings {
         self.calendar.days_ahead = self.calendar.days_ahead.clamp(1, 14);
         self.calendar.pill_minutes = self.calendar.pill_minutes.min(60);
         self.calendar.shown.retain(|k, _| !k.is_empty() && k.len() <= 300);
+        self.recorder.retention_days = self.recorder.retention_days.min(3650); // recorder-forecast
         self.version = CURRENT_VERSION;
     }
 

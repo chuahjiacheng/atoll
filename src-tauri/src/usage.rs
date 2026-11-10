@@ -148,6 +148,7 @@ fn apply_hits(app: &AppHandle, hits: &[(&'static str, u64)]) {
         view.updated_at = now_ms();
         fresh(view.clone())
     };
+    crate::recorder::commands::record_usage(app, &next, "log"); // recorder-forecast
     let _ = app.emit("usage", &next);
     warn(app, &next);
 }
@@ -422,6 +423,7 @@ async fn check_sign_in(app: &AppHandle, http: &reqwest::Client) -> std::time::Du
                 view.sign_in_error = None;
                 fresh(view.clone())
             };
+            crate::recorder::commands::record_usage(app, &next, "signin"); // recorder-forecast
             let _ = app.emit("usage", &next);
             warn(app, &next);
             EVERY
@@ -495,6 +497,7 @@ pub fn update(app: &AppHandle, payload: &Value) {
         view.updated_at = now_ms();
         fresh(view.clone())
     };
+    crate::recorder::commands::record_usage(app, &next, "statusline"); // recorder-forecast
     let _ = app.emit("usage", &next);
     warn(app, &next);
 }

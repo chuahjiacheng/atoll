@@ -69,6 +69,10 @@ windows = { version = "0.62", features = [
 windows-numerics = "0.3"
 windows-core = "0.62"
 tauri-plugin-dialog = "2"
+# --- recorder-forecast: flight recorder + usage forecast (docs/contracts/event-store.md) ---
+rusqlite = { version = "0.32", features = ["bundled"] }
+regex = "1"
+# --- end recorder-forecast ---
 drag = "2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 windows-sys = { version = "0.61", features = [

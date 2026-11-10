@@ -270,6 +270,8 @@ async fn handle_hook(State(ctx): State<Ctx>, headers: HeaderMap, body: Bytes) ->
         return Json(json!({})).into_response();
     }
 
+    crate::recorder::commands::record_hook(&ctx.app, &event); // recorder-forecast: queue only, never blocks
+
     let name = event.get("hook_event_name").and_then(Value::as_str).unwrap_or("");
     let session_id = event.get("session_id").and_then(Value::as_str).unwrap_or("").to_string();
 

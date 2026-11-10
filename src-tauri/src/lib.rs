@@ -56,6 +56,7 @@ mod tray;
 mod usage;
 mod winclip;
 mod windows;
+mod recorder; // recorder-forecast
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
@@ -143,6 +144,9 @@ pub(crate) fn commit_settings(app: &AppHandle, next: Settings) {
     }
     if prev.clipboard != next.clipboard {
         clipboard::settings_changed(app);
+    }
+    if prev.recorder != next.recorder {
+        recorder::commands::settings_changed(app); // recorder-forecast
     }
     if prev.usage.from_sign_in != next.usage.from_sign_in || prev.modules.usage_ring != next.modules.usage_ring {
         usage::poke(app);
@@ -1082,6 +1086,17 @@ pub fn run() {
             hooks_status,
             install_hooks,
             uninstall_hooks,
+            // --- recorder-forecast ---
+            recorder::commands::recorder_sessions,
+            recorder::commands::recorder_events,
+            recorder::commands::recorder_event,
+            recorder::commands::recorder_search,
+            recorder::commands::recorder_breakdown,
+            recorder::commands::recorder_agent_tree,
+            recorder::commands::recorder_usage,
+            recorder::commands::recorder_stats,
+            recorder::commands::recorder_delete_all,
+            // --- end recorder-forecast ---
         ])
         .on_window_event(|window, event| {
             // Closing the dashboard ends any "preview expanded" on the island.
@@ -1093,6 +1108,7 @@ pub fn run() {
         })
         .setup(|app| {
             let handle = app.handle().clone();
+            recorder::commands::start(&handle); // recorder-forecast: before the listener, so no event is missed
             let port = server::start(handle.clone())?;
             app.state::<AppState>().port.store(port, Ordering::Relaxed);
             println!("[crest] listening on 127.0.0.1:{port}");
