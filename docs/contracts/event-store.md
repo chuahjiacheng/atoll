@@ -232,3 +232,11 @@ pub struct Recorder { pub enabled: bool /* true */, pub retention_days: u32 /* 3
 ## Changelog
 
 - v1 (2026-11-10): first draft.
+- v1.1 (2026-11-10, additive, built in Step A):
+  - `Store::on_change(f)` registers the callback behind `recorder:changed`.
+  - `Store::flush()` waits until everything queued is written (tests, shutdown).
+  - `record_hook_at(event, ts)` and `prune_at(days, now)` take explicit times (simulator, tests).
+  - `StoreStats.dropped`: events dropped because the write queue (4,096) was full. Expected to stay 0.
+  - `Breakdown` lives in `recorder::breakdown` (re-exported as `recorder::Breakdown`); `breakdown::compute` is public for anyone who has events in memory.
+  - Glue for other files is in `recorder::commands`: `record_hook(app, &event)`, `record_usage(app, &UsageView, source)`, `delete_all(app)`. Each checks `settings.recorder.enabled` itself.
+  - The database uses `auto_vacuum=INCREMENTAL`, so pruning gives space back to the disk.
