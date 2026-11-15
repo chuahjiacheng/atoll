@@ -35,6 +35,7 @@
     ring = 0,
     time = "",
     bob = false,
+    width = null,
     label,
     onclick,
   }: {
@@ -63,6 +64,9 @@
     /** Timer: "24:13" */
     time?: string;
     bob?: boolean;
+    /** The pill's own final width (px), from its width contract. It keeps this
+     *  width while the island around it morphs, so its text never reflows. */
+    width?: number | null;
     label: string;
     onclick: () => void;
   } = $props();
@@ -104,9 +108,36 @@
       css: (t: number, u: number) => `opacity: ${t}; transform: translateY(${from * u * distance}px)`,
     };
   }
+
+  /**
+   * One state's content making way for the next: the old one blurs and
+   * shrinks away quickly; the new one arrives a beat later, once the island
+   * has started moving to its size. Each keeps its own final width throughout.
+   * Reduced motion: a plain cross-fade.
+   */
+  function swap(_node: Element, { arriving }: { arriving: boolean }) {
+    if (reduced()) return { duration: seconds("--dur-reduced") * 1000, css: (t: number) => `opacity: ${t}` };
+    const speed = px("--speed") || 1;
+    const blur = px("--swap-blur");
+    const shrink = 1 - (px("--swap-scale") || 1);
+    return {
+      delay: arriving ? (seconds("--dur-swap-delay") * 1000) / speed : 0,
+      duration: (seconds(arriving ? "--dur-swap-in" : "--dur-swap-out") * 1000) / speed,
+      easing: gsap.parseEase(arriving ? "power2.out" : "power1.in"),
+      css: (t: number, u: number) => `opacity: ${t}; filter: blur(${u * blur}px); transform: scale(${1 - u * shrink})`,
+    };
+  }
 </script>
 
-<button class="pill {kind}" aria-label={label} title={text || title || undefined} {onclick}>
+<button
+  class="pill {kind}"
+  style:width={width ? `${width}px` : null}
+  aria-label={label}
+  title={text || title || undefined}
+  {onclick}
+  in:swap|global={{ arriving: true }}
+  out:swap|global={{ arriving: false }}
+>
   {#if kind === "music"}
     {#if art}
       <img class="art" src={art} alt="" />
@@ -115,11 +146,13 @@
     {/if}
     <span class="line rows">
       {#key rollKey}
-        <span class="row" in:rollLine={{ from: 1 }} out:rollLine={{ from: -1 }}>
+        <span class="row" dir="auto" in:rollLine={{ from: 1 }} out:rollLine={{ from: -1 }}>
           {#if lyric}
             <span class="strong">{lyric}</span>
           {:else}
-            <span class="strong">{title}</span><span class="muted"> · {artist}</span>
+            <!-- The separator is an expression: Svelte drops plain leading spaces
+                 inside an element, which glued the dot to the title. -->
+            <span class="strong">{title}</span><span class="muted">{` · ${artist}`}</span>
           {/if}
         </span>
       {/key}
@@ -141,7 +174,7 @@
     </svg>
     <span class="time tabular">{time}</span>
     <span class="tword {tint}">{word}</span>
-    {#if text}<span class="line note">{text}</span>{/if}
+    {#if text}<span class="line note" dir="auto">{text}</span>{/if}
   {:else}
     <Pip {mood} {tone} {bob} size={24} />
     {#if kind === "idle"}
@@ -152,7 +185,7 @@
         <span class="spin" bind:this={spinner}><Icon name={icon} size={16} /></span>
         <span>{word}</span>
       </span>
-      <span class="line">{text}</span>
+      <span class="line" dir="auto">{text}</span>
       {#if meta}<span class="meta tabular">{meta}</span>{/if}
     {/if}
   {/if}
