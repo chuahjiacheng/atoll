@@ -1,6 +1,6 @@
 # Width contract
 
-Owner: `adaptive-island` · Version 0.1 (draft, awaiting approval) · 2026-11-10
+Owner: `adaptive-island` · Version 0.2 (draft, awaiting approval) · 2026-11-16
 
 Every state the island can show declares how wide it wants to be. The island
 resolves one width from that declaration and animates to it. No state sets or
@@ -54,7 +54,7 @@ export interface Measurer {
   token(name: string): number;
 }
 
-export type TextStyle = "label" | "labelStrong" | "small" | "smallStrong" | "body" | "bodyStrong" | "tabular";
+export type TextStyle = "label" | "labelStrong" | "small" | "smallStrong" | "body" | "bodyStrong" | "tabular" | "tabularStrong";
 
 /** Call when your content changed and the width may need to change. */
 export function invalidate(id: IslandStateId): void;
@@ -140,3 +140,4 @@ call any of the three.
 ## Changelog
 
 - 0.1 (2026-11-10): first draft.
+- 0.2 (2026-11-16): after building step 1. Added the `tabularStrong` text style and `Measurer.ready`. Pill content is anchored to the island's left edge (peeks and the panel stay centred). Within one state the pill grows at once but shrinks only after its content has stayed at least 12 px narrower for 2.5 s. The hover area is never narrower than 128 px. Text that is not plain Latin, and tabular numbers, are measured through a hidden element (canvas was 2.2 px off for Japanese and 1.85 px off for tabular digits).

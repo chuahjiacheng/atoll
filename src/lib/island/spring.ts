@@ -64,9 +64,24 @@ export function atRest(seg: ShapeSegment, t: number): boolean {
   return KEYS.every((k) => Math.abs(pos[k] - seg.to[k]) < REST_DISTANCE && Math.abs(vel[k]) < REST_SPEED);
 }
 
-/** A new segment towards `to`, starting from wherever `seg` is at `t`, velocity kept. */
+/**
+ * A new segment towards `to`, starting from wherever `seg` is at `t`.
+ * Position always carries over exactly (no jump). Velocity carries over too,
+ * with one limit: speed TOWARDS the new target is capped at omega × distance,
+ * the most a critically damped spring can absorb without passing its target.
+ * So a fast move that is retargeted to somewhere close slows down harder
+ * instead of sailing past and coming back (DESIGN.md: motion settles, it
+ * does not overshoot). Speed away from the new target is kept in full and
+ * turns around smoothly.
+ */
 export function retarget(seg: ShapeSegment, to: Shape, omega: number, t: number): ShapeSegment {
   const { pos, vel } = evaluate(seg, t);
+  for (const k of KEYS) {
+    const gap = to[k] - pos[k];
+    const limit = omega * Math.abs(gap);
+    if (gap >= 0 && vel[k] > limit) vel[k] = limit;
+    else if (gap < 0 && vel[k] < -limit) vel[k] = -limit;
+  }
   return { t0: t, from: pos, velocity: vel, to: { ...to }, omega };
 }
 

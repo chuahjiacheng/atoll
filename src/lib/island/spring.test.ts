@@ -40,25 +40,53 @@ const RETARGETS: [number, number, number, number, number][] = [
   [300, 160, 5, 384, 0.03],
 ];
 
-test("retargeting keeps position and velocity (no jump, no kink)", () => {
+test("retargeting never moves the shape: position carries over exactly", () => {
   for (const [from, first, at, second, omega] of RETARGETS) {
     const a = retarget(still(shape(from), 0), shape(first), 0.03, 0);
     const before = evaluate(a, at);
     const b = retarget(a, shape(second), omega, at);
     const after = evaluate(b, at);
-    for (const k of ["w", "h", "r"] as const) {
-      close(after.pos[k], before.pos[k], 1e-9, `position ${k} at retarget`);
-      close(after.vel[k], before.vel[k], 1e-9, `velocity ${k} at retarget`);
-    }
-    // One frame later (120 Hz and 60 Hz) the step is what the velocity predicts, not a jump.
+    for (const k of ["w", "h", "r"] as const) close(after.pos[k], before.pos[k], 1e-9, `position ${k} at retarget`);
+    // Velocity carries over unless it would carry the shape past the new target;
+    // then it is only ever reduced, never reversed or increased.
+    const gap = second - before.pos.w;
+    const cap = omega * Math.abs(gap);
+    const towards = Math.sign(gap) * before.vel.w;
+    if (towards <= cap) close(after.vel.w, before.vel.w, 1e-9, "velocity kept");
+    else close(Math.sign(gap) * after.vel.w, cap, 1e-9, "velocity capped at what the spring can absorb");
+    // One frame later (120 Hz and 60 Hz) the step is no more than the old speed allows: no jump.
     for (const frame of [8.33, 16.67]) {
-      const next = evaluate(b, at + frame).pos.w;
-      const predicted = before.pos.w + before.vel.w * frame;
-      // Allow for the spring's own acceleration over one frame.
-      const accel = omega * omega * Math.abs(second - before.pos.w) + 2 * omega * Math.abs(before.vel.w);
-      close(next, predicted, 0.5 * accel * frame * frame + 1e-6, `one ${frame} ms frame after retargeting ${from}->${first}->${second}`);
+      const step = Math.abs(evaluate(b, at + frame).pos.w - before.pos.w);
+      const accel = omega * omega * Math.abs(gap) + 2 * omega * Math.abs(before.vel.w);
+      assert.ok(step <= Math.abs(before.vel.w) * frame + 0.5 * accel * frame * frame + 1e-6, `jump one ${frame} ms frame after ${from}->${first}->${second}: ${step}`);
     }
     close(evaluate(b, at + 2000).pos.w, second, 0.01, "settles on the new target");
+  }
+});
+
+test("a retarget never passes its new target, however fast the shape was moving", () => {
+  // Each row: start, first target, retarget time, second target.
+  const rows: [number, number, number, number][] = [
+    [72, 384, 30, 170],   // racing towards 384, new target just ahead
+    [72, 384, 45, 300],
+    [384, 72, 30, 290],   // shrinking fast, new target just below
+    [72, 720, 50, 440],
+    [160, 384, 20, 200],
+  ];
+  for (const [from, first, at, second] of rows) {
+    for (const omega of [0.018, 0.03, 0.034]) {
+      const a = retarget(still(shape(from), 0), shape(first), 0.03, 0);
+      const start = evaluate(a, at).pos.w;
+      const b = retarget(a, shape(second), omega, at);
+      const [lo, hi] = [Math.min(start, second), Math.max(start, second)];
+      for (let t = at; t <= at + 1500; t += 1) {
+        const w = evaluate(b, t).pos.w;
+        // Moving away first is allowed (it turns around); passing the target is not.
+        if (Math.sign(second - start) === Math.sign(evaluate(a, at).vel.w)) {
+          assert.ok(w >= lo - 1e-6 && w <= hi + 1e-6, `${from}->${first}->${second} passed its target at ${t} ms: ${w}`);
+        }
+      }
+    }
   }
 });
 

@@ -115,7 +115,15 @@
    * has started moving to its size. Each keeps its own final width throughout.
    * Reduced motion: a plain cross-fade.
    */
-  function swap(_node: Element, { arriving }: { arriving: boolean }) {
+  /** Text changing within one state: a short cross-fade, no movement. */
+  function fadeLine(_node: Element) {
+    return { duration: dur("fast") * 1000, css: (t: number) => `opacity: ${t}` };
+  }
+
+  function swap(node: Element, { arriving }: { arriving: boolean }) {
+    // The leaving copy is out of reach at once: no click, no focus, and screen
+    // readers never meet two pills.
+    if (!arriving) node.setAttribute("inert", "");
     if (reduced()) return { duration: seconds("--dur-reduced") * 1000, css: (t: number) => `opacity: ${t}` };
     const speed = px("--speed") || 1;
     const blur = px("--swap-blur");
@@ -146,7 +154,7 @@
     {/if}
     <span class="line rows">
       {#key rollKey}
-        <span class="row" dir="auto" in:rollLine={{ from: 1 }} out:rollLine={{ from: -1 }}>
+        <span class="row" class:pair={!lyric} dir="auto" in:rollLine={{ from: 1 }} out:rollLine={{ from: -1 }}>
           {#if lyric}
             <span class="strong">{lyric}</span>
           {:else}
@@ -185,7 +193,12 @@
         <span class="spin" bind:this={spinner}><Icon name={icon} size={16} /></span>
         <span>{word}</span>
       </span>
-      <span class="line" dir="auto">{text}</span>
+      <!-- A new step or message fades over the old one instead of switching. -->
+      <span class="line rows">
+        {#key text}
+          <span class="row" dir="auto" in:fadeLine out:fadeLine>{text}</span>
+        {/key}
+      </span>
       {#if meta}<span class="meta tabular">{meta}</span>{/if}
     {/if}
   {/if}
@@ -253,6 +266,17 @@
     grid-template-columns: minmax(0, 1fr);
     align-items: center;
     align-self: stretch;
+  }
+  /* Title · artist at the widest the pill gets: both give way together, each
+     with its own ellipsis, so a long title never pushes the artist out. */
+  .row.pair { display: flex; }
+  .pair > .strong,
+  .pair > .muted {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
   }
   .row {
     grid-area: 1 / 1;

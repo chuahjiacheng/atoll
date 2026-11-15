@@ -54,7 +54,7 @@
     display: grid;
     gap: var(--sp-2);
     border-radius: var(--r-control);
-    background: rgba(var(--c-hull-rgb), 0.92);
+    background: rgba(var(--c-hull-rgb), var(--hover-min-alpha));
     color: var(--c-ink);
     font-size: var(--fs-label);
     line-height: var(--lh-tight);

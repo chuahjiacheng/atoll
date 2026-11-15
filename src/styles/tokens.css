@@ -65,6 +65,10 @@
   --size-timer-min: 120px;
   /* within one state the pill only shrinks once its content is this much narrower */
   --width-deadband: 12px;
+  /* …and only after its content has stayed narrower this long */
+  --dur-width-hold: 2500ms;
+  /* hovering this close to the centre opens the island, however small the idle pill */
+  --size-hover-min: 128px;
   --size-top-gap: 8px;
   /* room kept above the island inside its window, for the glow */
   --size-top-room: 32px;

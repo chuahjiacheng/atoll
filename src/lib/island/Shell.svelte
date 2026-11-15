@@ -351,11 +351,17 @@
     box-sizing: border-box;
     z-index: 1;
   }
-  /* The leaving and arriving pill contents share one cell while they cross-fade. */
+  /* The pill's content is anchored to the island's left edge, not centred: its
+     leading mark (Pip, album art, timer ring) rides that edge as the island
+     grows, and the text is uncovered by the right edge. Centred, the leading
+     mark hopped sideways and was clipped whenever the content got wider.
+     The leaving and arriving contents share one cell while they cross-fade. */
   .pill-layer {
+    left: 0;
+    margin-left: 0;
     height: var(--pill-h);
     display: grid;
-    justify-items: center;
+    justify-items: start;
   }
   .pill-layer > :global(*) { grid-area: 1 / 1; }
   .peek-layer { --w: var(--size-peek-w); }

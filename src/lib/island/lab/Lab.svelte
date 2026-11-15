@@ -101,6 +101,10 @@
   let results = $state<Record<string, unknown> | null>(null);
   let running = $state(false);
 
+  // As in the app: the size tokens are in place before the island mounts, so
+  // the glass is warmed at the real panel size.
+  applyAppearance($state.snapshot(appearance) as Appearance);
+
   const scenario = $derived(SCENARIOS[index]);
   const contract = $derived.by(() => {
     void measured;
@@ -248,7 +252,7 @@
     let worstExcess = 0;
     for (let i = 1; i < frames.length; i++) {
       const step = Math.abs(frames[i].w - frames[i - 1].w);
-      const allowed = Math.max(frames[i].v, frames[i - 1].v) * stats.max * 1.25 + 0.5;
+      const allowed = Math.max(frames[i].v, frames[i - 1].v) * stats.max * 1.25 + 3; // 3 px: the spring speeds up within a frame
       worstExcess = Math.max(worstExcess, step - allowed);
     }
     return {

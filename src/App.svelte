@@ -270,7 +270,10 @@
   function reportRect() {
     if (!shellEl) return;
     const r = shellEl.getBoundingClientRect();
-    api.setHitRect({ x: r.left, y: r.top, w: r.width, h: r.height });
+    // The idle pill is small now; the area that opens the island on hover is
+    // never narrower than it used to be.
+    const w = Math.max(r.width, px("--size-hover-min"));
+    api.setHitRect({ x: r.left - (w - r.width) / 2, y: r.top, w, h: r.height });
   }
 
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
@@ -616,12 +619,25 @@
     const fit = pillFit;
     const id = pillContract.id;
     untrack(() => {
-      // Within one state, small shrinks are ignored so the pill does not twitch
-      // (a ticking clock, a slightly shorter step name). A new state takes its own width.
-      pillW = id === widthFor ? settleWidth(pillW, fit.width, px("--width-deadband")) : fit.width;
-      widthFor = id;
+      // A new state takes its own width at once. Within one state the pill
+      // grows at once (or its text would be cut) but is slow to shrink: small
+      // differences are ignored, and a real one must last a few seconds first.
+      // Otherwise a busy agent's step names would make the pill breathe.
+      const next = id === widthFor ? settleWidth(pillW, fit.width, px("--width-deadband")) : fit.width;
+      if (id !== widthFor || next >= pillW) {
+        clearTimeout(shrinkTimer);
+        shrinkTimer = undefined;
+        pillW = next;
+        widthFor = id;
+      } else if (!shrinkTimer) {
+        shrinkTimer = setTimeout(() => {
+          shrinkTimer = undefined;
+          if (pillContract.id === widthFor) pillW = settleWidth(pillW, pillFit.width, px("--width-deadband"));
+        }, seconds("--dur-width-hold") * 1000);
+      }
     });
   });
+  let shrinkTimer: ReturnType<typeof setTimeout> | undefined;
 
   // What the island is showing and why, for the dev overlay and the test harness.
   const islandState = $derived(
