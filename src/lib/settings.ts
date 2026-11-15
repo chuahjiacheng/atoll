@@ -136,6 +136,8 @@ export interface Settings {
   alerts: Alerts;
   usage: { showInPill: boolean; ringWindow: "fiveHour" | "sevenDay"; fromSignIn: boolean };
   chatWatcher: { onlyWhenUnfocused: boolean };
+  /** recorder-forecast: local, redacted Claude Code history. retentionDays 0 = keep forever. */
+  recorder: { enabled: boolean; retentionDays: number };
   spotify: { connected: boolean; clientId: string; lyrics: boolean; showInPill: boolean; progressLine: boolean; pillText: "track" | "lyrics"; pillPriority: "claude" | "spotify"; callbackPort: number };
   clipboard: {
     persist: boolean;

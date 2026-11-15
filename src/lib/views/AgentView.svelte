@@ -10,6 +10,10 @@
   import Icon, { type IconName } from "../ui/Icon.svelte";
   import Pip, { type Tone } from "../ui/Pip.svelte";
   import Ring from "../ui/Ring.svelte";
+  import HistoryView from "./HistoryView.svelte"; // recorder-forecast
+
+  // recorder-forecast: "live" = this tab as approved in Milestone 2; "history" = flight recorder.
+  let view = $state<"live" | "history">("live");
 
   let {
     sessions,
@@ -71,11 +75,14 @@
   }
 </script>
 
-{#if sessions.length === 0 && feed.history.length === 0}
+{#if view === "history"}
+  <HistoryView {now} onBack={() => (view = "live")} />
+{:else if sessions.length === 0 && feed.history.length === 0}
   <div class="empty-state clay">
     <Pip mood="idle" {tone} size={64} />
     <div class="title">No agent session yet</div>
     <div class="hint">Start Claude Code in a terminal or the Claude desktop Code tab. Its activity, status and usage appear here.</div>
+    <button class="btn secondary small" onclick={() => (view = "history")}><Icon name="clock" size={16} />Past sessions</button>
   </div>
 {:else}
   <div class="agent clay">
@@ -151,7 +158,10 @@
         </div>
       </div>
 
-      <div class="label strong heading">History</div>
+      <div class="heading-row">
+        <div class="label strong heading">History</div>
+        <button class="all label strong" onclick={() => (view = "history")} aria-label="Open full history">All<Icon name="clock" size={16} /></button>
+      </div>
       <div class="list" data-lenis-prevent>
         {#each feed.history.slice(0, 6) as h (h.at + h.sessionId)}
           <div class="hist">
@@ -264,4 +274,13 @@
   .name { font-size: var(--fs-small); font-weight: var(--fw-strong); }
   .hist { padding: var(--sp-4) var(--sp-8); min-width: 0; font-size: var(--fs-small); }
   .hist .status-word .label { font-weight: var(--fw-regular); }
+  /* recorder-forecast: entry to the full history */
+  .heading-row { display: flex; align-items: center; justify-content: space-between; flex: none; }
+  .all {
+    display: inline-flex; align-items: center; gap: var(--sp-4);
+    margin-top: var(--sp-8); height: 24px; padding: 0 var(--sp-8); border-radius: var(--r-pill);
+    color: var(--clay); transition: background-color var(--dur-fast);
+  }
+  .all:hover { background: var(--clay-soft); }
+  .all:focus-visible { outline: var(--focus-width) solid var(--clay); outline-offset: 0; }
 </style>

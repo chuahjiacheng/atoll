@@ -10,7 +10,8 @@
   import { settingsApi, type ClaudeStatus, type Settings } from "../../lib/settings";
   import { ago } from "../../lib/format";
   import GButton from "../../lib/glass/GButton.svelte";
-  import { act, change } from "../store.svelte";
+  import { act, change, confirm } from "../store.svelte";
+  import { recorder, bytes, type StoreStats } from "../../lib/recorder"; // recorder-forecast
   import Section from "../ui/Section.svelte";
   import Row from "../ui/Row.svelte";
   import SwitchRow from "../ui/SwitchRow.svelte";
@@ -30,6 +31,24 @@
   let now = $state(Date.now());
 
   const refresh = async () => (status = await settingsApi.claudeStatus());
+
+  // --- recorder-forecast ---
+  let recStats = $state<StoreStats | null>(null);
+  const refreshHistory = () => recorder.stats().then((st) => (recStats = st)).catch(() => (recStats = null));
+  function deleteHistory() {
+    confirm(
+      "Delete all history?",
+      "This removes every saved Claude Code event and usage reading from this PC. It cannot be undone.",
+      "Delete all history",
+      () => act(async () => { await recorder.deleteAll(); await refreshHistory(); }, "History deleted"),
+    );
+  }
+  onMount(() => {
+    refreshHistory();
+    const un = recorder.onChanged(() => refreshHistory());
+    return () => { un.then((f) => f()); };
+  });
+  // --- end recorder-forecast ---
 
   onMount(() => {
     refresh();
@@ -245,6 +264,33 @@
     {/if}
   </Row>
 </Section>
+
+<!-- recorder-forecast: flight recorder settings -->
+<Section title="History" desc="Every Claude Code event is saved on this PC so you can look back in the Agent tab. Keys, tokens and passwords are removed before saving; a secret with no recognisable name or shape can't be spotted, so delete history if one slipped into a prompt.">
+  <SwitchRow
+    label="Keep history"
+    help="Turning this off stops saving new events. What is already saved stays until you delete it."
+    checked={s.recorder.enabled}
+    onchange={(v) => change("recorder.enabled", v)}
+  />
+  <SelectRow
+    label="Keep events for"
+    value={String(s.recorder.retentionDays)}
+    disabled={!s.recorder.enabled}
+    options={[
+      { v: "7", label: "1 week" },
+      { v: "30", label: "30 days" },
+      { v: "90", label: "90 days" },
+      { v: "365", label: "1 year" },
+      { v: "0", label: "Forever" },
+    ]}
+    onchange={(v) => change("recorder.retentionDays", Number(v))}
+  />
+  <Row label="Saved now" icon="clock" help={recStats ? `${recStats.events.toLocaleString("en-GB")} events from ${recStats.sessions} sessions, ${bytes(recStats.fileBytes)}.` : "Nothing saved yet."}>
+    <GButton label="Delete all history" icon="trash" iconSize={16} destructive disabled={!recStats?.events} onclick={deleteHistory} />
+  </Row>
+</Section>
+<!-- end recorder-forecast -->
 
 <Section title="Chat tab watcher (experimental)">
   <SwitchRow

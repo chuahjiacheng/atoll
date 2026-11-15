@@ -28,7 +28,7 @@
   function clearAll() {
     confirm(
       "Clear all data?",
-      "This removes your settings, clipboard history, whiteboard, file tray, note, focus history and Spotify sign-in. Your Claude Code hooks stay. This cannot be undone.",
+      "This removes your settings, clipboard history, whiteboard, file tray, note, focus history, Claude Code history and Spotify sign-in. Your Claude Code hooks stay. This cannot be undone.",
       "Clear all data",
       () => act(settingsApi.clearAllData, "All data cleared"),
     );
