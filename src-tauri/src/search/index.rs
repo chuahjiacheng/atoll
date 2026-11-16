@@ -54,9 +54,19 @@ pub struct Doc {
     pub kind: String,
 }
 
+/// The stored document keeps no body: once its words are indexed only a
+/// hash is kept, to tell whether a re-read changed anything.
 struct Slot {
     doc: Doc,
     title_lc: String,
+    body_hash: u64,
+}
+
+fn hash(s: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    s.hash(&mut h);
+    h.finish()
 }
 
 /// Longest text read from one document (title + body), in characters.
@@ -124,7 +134,9 @@ impl Index {
         tokens(&doc.title, &mut words);
         let left = MAX_INDEXED_CHARS.saturating_sub(doc.title.chars().count());
         tokens(&doc.body.chars().take(left).collect::<String>(), &mut words);
-        tokens(&doc.sub, &mut words);
+        // The sub line starts with the source's name ("Clipboard · Link · Chrome");
+        // index only what follows, or "clip" would match every clipboard item.
+        tokens(doc.sub.split_once(" · ").map_or("", |(_, rest)| rest), &mut words);
         words.sort_unstable();
         words.dedup();
         for w in words {
@@ -141,7 +153,9 @@ impl Index {
         }
         self.by_key.insert(doc.key.clone(), slot);
         let title_lc = doc.title.to_lowercase();
-        self.slots.push(Some(Slot { doc, title_lc }));
+        let body_hash = hash(&doc.body);
+        let doc = Doc { body: String::new(), ..doc };
+        self.slots.push(Some(Slot { doc, title_lc, body_hash }));
     }
 
     pub fn remove(&mut self, key: &str) {
@@ -166,7 +180,7 @@ impl Index {
             if let Some(&s) = self.by_key.get(&d.key) {
                 if let Some(cur) = &self.slots[s as usize] {
                     let c = &cur.doc;
-                    if c.title == d.title && c.body == d.body && c.sub == d.sub && c.at == d.at && c.pinned == d.pinned {
+                    if c.title == d.title && cur.body_hash == hash(&d.body) && c.sub == d.sub && c.at == d.at && c.pinned == d.pinned {
                         continue;
                     }
                 }
@@ -177,6 +191,15 @@ impl Index {
 
     pub fn clear_source(&mut self, source: Source) {
         self.replace_source(source, Vec::new());
+    }
+
+    /// Give back the spare capacity growing lists keep (after a bulk load).
+    pub fn shrink(&mut self) {
+        for p in &mut self.postings {
+            p.shrink_to_fit();
+        }
+        self.postings.shrink_to_fit();
+        self.slots.shrink_to_fit();
     }
 
     /// Rebuild without tombstones.
@@ -259,7 +282,8 @@ impl Index {
             .slots
             .iter()
             .flatten()
-            .map(|s| std::mem::size_of::<Slot>() + s.doc.key.len() * 2 + s.doc.title.len() * 2 + s.doc.sub.len() + s.doc.body.len() + s.doc.kind.len())
+            // Heap text only; the structs themselves are counted in `tombs` (the slot array).
+            .map(|s| s.doc.key.len() * 2 + s.doc.title.len() + s.title_lc.len() + s.doc.sub.len() + s.doc.kind.len())
             .sum();
         let tombs = self.slots.len() * std::mem::size_of::<Option<Slot>>();
         let dict: usize = self.dict.keys().map(|k| k.len() + 16 + 8).sum::<usize>() + self.dict.len() * 16;
@@ -357,6 +381,16 @@ mod tests {
     }
 
     #[test]
+    fn source_name_in_sub_is_not_searchable() {
+        let mut ix = Index::default();
+        let mut d = doc("a", Source::Agent, "Edited index.rs", "", NOW, false);
+        d.sub = "Agent history · PostToolUse · Edit".into();
+        ix.upsert(d);
+        assert!(ix.search("hist", 10, None, NOW).is_empty());
+        assert_eq!(ix.search("posttooluse", 10, None, NOW).len(), 1);
+    }
+
+    #[test]
     fn cjk_and_case() {
         let mut ix = Index::default();
         ix.upsert(doc("zh", Source::Note, "历史考试复习", "", NOW, false));
@@ -380,6 +414,7 @@ mod tests {
             rng
         };
         let sources = Source::ALL;
+        let private_before = private_bytes();
         let t0 = std::time::Instant::now();
         let mut ix = Index::default();
         for i in 0..50_000u64 {
@@ -405,7 +440,12 @@ mod tests {
                 kind: "text".into(),
             });
         }
+        ix.shrink();
         let build = t0.elapsed();
+        println!(
+            "measured: process private memory grew {:.1} MB while building (includes the synthetic word list, ~0.3 MB)",
+            (private_bytes().saturating_sub(private_before)) as f64 / 1e6
+        );
         println!("built 50,000 docs in {build:?}; {} distinct words; index ≈ {:.1} MB in memory", ix.dict.len(), ix.bytes() as f64 / 1e6);
 
         let queries: Vec<String> = (0..400)
@@ -438,6 +478,68 @@ mod tests {
         let t = std::time::Instant::now();
         let r = ix.search("", 50, None, NOW);
         println!("empty query (recent list): {:.2} ms, {} results", t.elapsed().as_secs_f64() * 1e3, r.len());
+    }
+
+    /// Idle CPU of the indexing worker with 50,000 documents loaded.
+    /// Run with: cargo test --release --lib search::index::tests::idle_cpu -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn idle_cpu() {
+        use std::sync::{mpsc, Arc, Mutex};
+        use std::time::{Duration, Instant};
+        let ix = Arc::new(Mutex::new(Index::default()));
+        {
+            let mut g = ix.lock().unwrap();
+            for i in 0..50_000u64 {
+                g.upsert(doc(&format!("agent:{i}"), Source::Agent, &format!("Edited file number {i} in project"), "", NOW - i * 1_000, false));
+            }
+            g.shrink();
+        }
+        // The same shape as search::start: block on a channel, settle 250 ms, re-read the source.
+        let (tx, rx) = mpsc::channel::<Source>();
+        let worker_ix = ix.clone();
+        std::thread::spawn(move || {
+            while let Ok(_first) = rx.recv() {
+                while rx.recv_timeout(Duration::from_millis(250)).is_ok() {}
+                let docs: Vec<Doc> = (0..200u64).map(|i| doc(&format!("clipboard:{i}"), Source::Clipboard, &format!("copied text {i} {}", crate::media::now_ms()), "", NOW, false)).collect();
+                worker_ix.lock().unwrap().replace_source(Source::Clipboard, docs);
+            }
+        });
+        let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f64;
+        let measure = |label: &str, secs: u64, poke: Option<&mpsc::Sender<Source>>| {
+            let (c0, t0) = (cpu_seconds(), Instant::now());
+            while t0.elapsed() < Duration::from_secs(secs) {
+                if let Some(tx) = poke {
+                    let _ = tx.send(Source::Clipboard);
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+            let cpu = cpu_seconds() - c0;
+            let wall = t0.elapsed().as_secs_f64();
+            println!("{label}: {:.3} % of the whole CPU ({cpus} logical cores), {:.0} ms CPU in {:.0} s", cpu / wall / cpus * 100.0, cpu * 1e3, wall);
+        };
+        measure("idle, index loaded, worker waiting", 30, None);
+        measure("re-indexing 200 clipboard items every second", 30, Some(&tx));
+    }
+
+    /// CPU time (user + kernel) this process has used, in seconds.
+    fn cpu_seconds() -> f64 {
+        use windows_sys::Win32::Foundation::FILETIME;
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
+        let z = FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
+        let (mut a, mut b, mut k, mut u) = (z, z, z, z);
+        unsafe { GetProcessTimes(GetCurrentProcess(), &mut a, &mut b, &mut k, &mut u) };
+        let t = |f: FILETIME| ((f.dwHighDateTime as u64) << 32 | f.dwLowDateTime as u64) as f64 / 1e7;
+        t(k) + t(u)
+    }
+
+    /// This process's private bytes, read with PowerShell (no extra crate features).
+    fn private_bytes() -> u64 {
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &format!("(Get-Process -Id {}).PrivateMemorySize64", std::process::id())])
+            .output()
+            .expect("powershell");
+        String::from_utf8_lossy(&out.stdout).trim().parse().unwrap_or(0)
     }
 
     fn synth_word(i: usize) -> String {

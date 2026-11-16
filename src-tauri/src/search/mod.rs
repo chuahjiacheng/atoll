@@ -55,9 +55,13 @@ fn refresh(app: &AppHandle, source: Source) {
         if let Some(max) = docs.iter().map(|d| d.at as i64).max() {
             state.agent_since.store(max, Ordering::Relaxed);
         }
+        let bulk = docs.len() > 500;
         let mut ix = state.index.lock().unwrap();
         for d in docs {
             ix.upsert(d);
+        }
+        if bulk {
+            ix.shrink();
         }
         return;
     }
@@ -185,7 +189,10 @@ pub fn act(app: &AppHandle, key: &str, action: &str) -> std::result::Result<(), 
             Ok(())
         }
         (Source::Note, "paste" | "copy") => {
-            crate::winclip::write(&crate::winclip::Content::Text(doc.body.clone()))?;
+            // The index keeps no bodies: read the line from the note itself.
+            let n: usize = id.parse().map_err(|_| "That line is gone.")?;
+            let line = crate::tray::note_get().lines().nth(n).map(str::to_string).ok_or("That line is gone.")?;
+            crate::winclip::write(&crate::winclip::Content::Text(line))?;
             if paste { crate::paste::paste_into_previous() } else { Ok(()) }
         }
         (Source::FileTray, "open") => crate::tray::open(app, id),

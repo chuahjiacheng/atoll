@@ -153,6 +153,9 @@ export interface Settings {
     ocr: boolean;
     // ---- search-clipboard: end ----
   };
+  // ---- search-clipboard: begin ----
+  search: { seeded: boolean };
+  // ---- search-clipboard: end ----
   /** clearAfterMin: an error or "needs you" clears itself after this many minutes (0 = never). */
   claude: { liveActivity: boolean; askPermissions: boolean; soundOnDone: boolean; popupOnDone: boolean; clearAfterMin: number };
   whiteboard: { autoAddCopies: boolean; clickPaste: boolean };
