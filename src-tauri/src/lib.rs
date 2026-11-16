@@ -48,6 +48,7 @@ mod reply;
 mod server;
 mod sessions;
 mod settings;
+mod arbiter; // adaptive-island: decides what the island shows (statechart)
 mod shape; // adaptive-island: the island's shape over time, shared by the glass and the hover test
 mod shortcuts;
 mod spotify;
@@ -1008,6 +1009,7 @@ pub fn run() {
             shape::island_clock,
             shape::set_island_motion,
             shape::island_metrics,
+            arbiter::arbiter_post,
             // adaptive-island: end
             get_settings,
             update_settings,

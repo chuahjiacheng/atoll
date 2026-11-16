@@ -37,6 +37,7 @@
   import DevOverlay from "./lib/island/DevOverlay.svelte";
   import { focusContract, idleContract, lyricLineWidth, lyricsContract, musicContract, statusContract, withLimits } from "./lib/island/contracts";
   import { lineAt, planLyrics, wakeIn, type LyricsMode } from "./lib/island/lyrics-width";
+  import { DEFAULT_ORDER, createArbiter, pickPill, type Claim, type Decision, type Policy } from "./lib/island/arbiter";
   import { measurer } from "./lib/island/measure";
   import { exposeMetrics, metrics } from "./lib/island/metrics";
   import { onInvalidate, resolveWidth, settleWidth, type IslandStateId } from "./lib/island/width";
@@ -221,25 +222,41 @@
     await api.replyInClaude(s.id, text);
   }
   const mode = $derived<"pill" | "peek" | "panel">(perm || asking ? "peek" : expanded ? "panel" : digest || finished ? "peek" : "pill");
-  // Needs you and errors always beat music. Busy and a fresh "done" beat music
-  // too, unless Settings → Spotify gives music the pill. Music beats idle.
+  // ---------- which state gets the pill (src-tauri/src/arbiter.rs) ----------
+  // Every source only says what it has to offer; the arbiter decides. Needs
+  // you and errors come first, then the focus timer, then agent status, an
+  // event about to start, and music (Settings → Spotify can put music ahead).
   const musicFirst = $derived(settings?.spotify.pillPriority === "spotify");
-  const claudeUrgent = $derived(pillStatus === "attention" || pillStatus === "error");
-  // The focus timer beats everything but "needs you", and errors unless focus holds or silences them.
-  const timerYields = $derived(pillStatus === "attention" || (pillStatus === "error" && (!dnd || settings?.focus.errors === "show")));
-  // An event about to start beats music, idle and a finished task; Claude
-  // working, needs you, errors and the focus timer beat it.
-  const eventFirst = $derived(!!soon && (!pillStatus || pillStatus === "done"));
+  const claims = $derived.by<Claim[]>(() => {
+    const c: Claim[] = [];
+    if (perm) c.push({ key: perm.questions?.length ? "peek:question" : "peek:permission", token: String(perm.id) });
+    if (asking) c.push({ key: "peek:ask", token: askKey(asking) });
+    if (expanded) c.push({ key: "panel" });
+    if (digest) c.push({ key: "peek:digest", token: String(digestKey) });
+    if (finished) c.push({ key: "peek:finished", token: finished.id });
+    if (pillStatus === "attention") c.push({ key: "needs-you" });
+    else if (pillStatus === "error") c.push({ key: "error" });
+    else if (pillStatus === "working") c.push({ key: "busy" });
+    else if (pillStatus === "done") c.push({ key: "done" });
+    if (timer) c.push({ key: "focus" });
+    if (soon) c.push({ key: "event" });
+    if (musicInPill) c.push({ key: "music" });
+    return c;
+  });
+  const policy = $derived<Policy>({ musicFirst, focusDnd: dnd, errorsInFocus: settings?.focus.errors === "show" });
+  let decision = $state<Decision | null>(null);
+  const arbiter = createArbiter((d) => (decision = d));
+  // Posted only when the set of claims changes, never on a tick.
+  const claimSig = $derived(JSON.stringify([claims, policy]));
+  $effect(() => {
+    void claimSig;
+    untrack(() => arbiter.post(claims, policy));
+  });
+  /** The first state in the arbiter's order that is still on offer: a state
+   *  that ends is replaced at once, a new one waits for the arbiter's answer. */
+  const pillKey = $derived(pickPill(decision?.order ?? DEFAULT_ORDER, new Set(claims.map((c) => c.key))));
   const pillKind = $derived<"idle" | "status" | "music" | "timer" | "event">(
-    timer && !timerYields
-      ? "timer"
-      : eventFirst && !claudeUrgent
-        ? "event"
-        : pillStatus && (claudeUrgent || !musicFirst || !musicInPill)
-          ? "status"
-          : musicInPill
-            ? "music"
-            : "idle",
+    pillKey === "focus" ? "timer" : pillKey === "event" || pillKey === "music" || pillKey === "idle" ? pillKey : "status",
   );
   const timerNote = $derived(nudging && timer?.nudge ? `${timer.nudge.app} · back to focus?` : (timer?.intention ?? ""));
   /** Settings → Appearance size and roundness: the outline re-fits as soon as any of them change. */
@@ -502,6 +519,7 @@
     const premount = setTimeout(() => (panelMounted = true), 1500);
     return () => {
       clearTimeout(premount);
+      arbiter.stop();
       stopMeasure.forEach((stop) => stop());
       window.removeEventListener("pointerdown", pointerInput, true);
       window.removeEventListener("keydown", keyInput, true);
@@ -696,11 +714,8 @@
   const islandReason = $derived.by(() => {
     if (mode === "panel") return hovering ? "pointer is over the island" : pinned ? "opened by click or hotkey" : dropping ? "something is being dragged in" : "a text box has focus";
     if (mode === "peek") return perm ? "a permission request or question is waiting" : asking ? "Claude asked a question" : digest ? "break started: what was held during focus" : "a task just finished";
-    if (pillKind === "timer") return "focus timer on: beats music and agent status";
-    if (pillKind === "event") return "an event starts soon and nothing urgent is on";
-    if (pillKind === "status") return claudeUrgent ? "needs you or an error: always first" : musicInPill ? "agent status beats music (Settings → Spotify)" : "agent status";
-    if (pillKind === "music") return pillStatus ? "music is given the pill (Settings → Spotify)" : "music playing, nothing more urgent";
-    return "nothing to show";
+    // The pill: the arbiter's own reason (until its answer for a state that just ended arrives, the next in its order).
+    return decision && decision.pill === pillKey && !decision.surface ? decision.reason : pillKey === "idle" ? "nothing to show" : `next in the arbiter's order: ${pillKey}`;
   });
   $effect(() => {
     metrics.setState(islandState, islandReason);
@@ -818,7 +833,7 @@
       {/snippet}
     </Shell>
     {#if devOverlay}
-      <div class="dev"><DevOverlay /></div>
+      <div class="dev"><DevOverlay {decision} /></div>
     {/if}
 
     {#snippet peekLayer()}

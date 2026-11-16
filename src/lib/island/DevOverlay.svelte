@@ -11,6 +11,10 @@
   import { measurer } from "./measure";
   import { invoke } from "@tauri-apps/api/core";
   import { clockOffsetMs, roundTripMs } from "./native";
+  import type { Decision } from "./arbiter";
+
+  /** The arbiter's last answer: what shows, what waits and why. */
+  let { decision = null }: { decision?: Decision | null } = $props();
 
   interface NativeMetrics {
     glass: { mode: string; loopRunning: boolean; frames: { budgetMs: number; count: number; dropped: number; p50: number; p95: number; max: number } };
@@ -42,6 +46,25 @@
 <dl class="overlay tabular" aria-hidden="true">
   <div><dt>State</dt><dd>{m.state.id}{m.state.previous ? ` (was ${m.state.previous})` : ""}</dd></div>
   <div><dt>Why</dt><dd>{m.state.reason}</dd></div>
+  {#if decision}
+    {@const last = decision.last}
+    <div>
+      <dt>Arbiter</dt>
+      <dd class:live={decision.recheckIn !== null}>
+        {decision.state}{last ? `, ${last.cause} from ${last.from}` : ""}{decision.recheckIn !== null ? `; asks again in ${n(decision.recheckIn)} ms` : ""}
+      </dd>
+    </div>
+    <div>
+      <dt>Queue</dt>
+      <dd>
+        {#each decision.queue as q (q.key)}
+          <span class="queued">{q.key}{q.count > 1 ? ` ×${q.count}` : ""} · {q.status} · {q.reason} · {n(q.waitedMs / 1000, 1)} s</span>
+        {:else}
+          empty
+        {/each}
+      </dd>
+    </div>
+  {/if}
   <div><dt>Width</dt><dd>{n(m.width.current, 1)} → {n(m.width.target)} px, limits {n(m.width.min)}–{n(m.width.max)}</dd></div>
   <div>
     <dt>Spring</dt>
@@ -89,6 +112,7 @@
   }
   dt { color: var(--c-muted); }
   dd { margin: 0; }
+  .queued { display: block; }
   .live { color: var(--c-busy); }
   .bad { color: var(--c-error); }
 </style>

@@ -1,6 +1,6 @@
 # Island metrics
 
-Owner: `adaptive-island` · Version 0.2 (draft, awaiting approval) · 2026-11-16
+Owner: `adaptive-island` · Version 0.3 (draft, awaiting approval) · 2026-11-16
 
 What the island exposes to the test harness and the dev overlay: its current
 state, its width animation and its frame times. Read-only. Nothing here leaves
@@ -116,3 +116,4 @@ interface NativeMetrics {
 
 - 0.1 (2026-11-10): first draft.
 - 0.2 (2026-11-16): after building step 2. `island_metrics` as built returns `{ version, at, shape, hit, glass: { mode, loopRunning, frames } }`, with `shape` and `hit` in CSS px inside the island window (not physical px), and takes an optional `reset: true` to clear the glass frame times. Not built yet: `clockOffsetMs` (the page holds it; see `clockOffsetMs()` in `src/lib/island/native.ts`), `glass.lastLagMs` (cannot be measured: see §5) and `arbiter` (step 4). The `island-state` and `island-rest` events are not emitted yet; use `window.__atoll.metrics.subscribe`. Release builds return `null`; the `dev.metrics` setting does not exist yet.
+- 0.3 (2026-11-16): after building step 4. `state.reason` now comes from the arbiter (docs/contracts/arbiter.md). The `island-state` event is emitted by `arbiter_post` on every change of state, with ids as in arbiter.md (`needs-you`, `busy`, `music`, ...; the page's `state.id` still says `lyrics` when music is shown as lyrics, and `attention` for `needs-you`). The arbiter's queue and last decision are in the `Decision` the page holds and the dev overlay shows; they are not added to `island_metrics`. Still not built: `island-rest`, `dev.metrics`.
