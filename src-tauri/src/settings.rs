@@ -32,7 +32,20 @@ pub struct Settings {
     pub calendar: Calendar,
     /// Tab order in the expanded island (module keys). Home is always first.
     pub module_order: Vec<String>,
+    // ---- search-clipboard: begin ----
+    pub search: SearchSettings,
+    // ---- search-clipboard: end ----
 }
+
+// ---- search-clipboard: begin ----
+/// Universal search and the command palette (src-tauri/src/search).
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SearchSettings {
+    /// One-time defaults applied (the palette hotkey); see search::seed_settings.
+    pub seeded: bool,
+}
+// ---- search-clipboard: end ----
 
 /// Focus timer (module switch: `modules.focus`). The timer itself runs in
 /// `focus.rs`; the sound at the end of a session is `alerts.timer`.
@@ -511,6 +524,7 @@ impl Default for Settings {
             chat_watcher: ChatWatcher::default(),
             spotify: Spotify::default(),
             clipboard: ClipboardSettings::default(),
+            search: SearchSettings::default(), // search-clipboard
             whiteboard: Whiteboard::default(),
             mascot: Mascot::default(),
             claude: Claude::default(),
@@ -774,6 +788,7 @@ pub fn load() -> Settings {
             s.hotkeys.modules.entry("dismissMessage".into()).or_insert_with(|| "Ctrl+Alt+KeyD".into());
         }
     }
+    crate::search::seed_settings(&mut s); // search-clipboard
     s.sanitize();
     s
 }

@@ -131,6 +131,9 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
         }
         // Start, pause or resume the focus timer.
         Some(Action::Module(m)) if m == "focus" => crate::focus::toggle(app),
+        // ---- search-clipboard: begin ----
+        Some(Action::Module(m)) if m == "palette" => crate::search::palette::toggle(app),
+        // ---- search-clipboard: end ----
         Some(Action::Module(m)) if matches!(m.as_str(), "clipboard" | "whiteboard" | "fileTray" | "note" | "calendar") => {
             crate::windows::open_tab(app, &m)
         }
