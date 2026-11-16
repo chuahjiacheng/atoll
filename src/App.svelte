@@ -267,15 +267,6 @@
     document.documentElement.dataset.mascot = s.modules.mascot ? "on" : "off";
   }
 
-  function reportRect() {
-    if (!shellEl) return;
-    const r = shellEl.getBoundingClientRect();
-    // The idle pill is small now; the area that opens the island on hover is
-    // never narrower than it used to be.
-    const w = Math.max(r.width, px("--size-hover-min"));
-    api.setHitRect({ x: r.left - (w - r.width) / 2, y: r.top, w, h: r.height });
-  }
-
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
   function setHover(inside: boolean) {
     clearTimeout(collapseTimer);
@@ -523,14 +514,8 @@
     return () => clearInterval(id);
   });
 
-  // Keep the click-through area equal to the island while it morphs.
-  $effect(() => {
-    if (!shellEl) return;
-    const observer = new ResizeObserver(reportRect);
-    observer.observe(shellEl);
-    reportRect();
-    return () => observer.disconnect();
-  });
+  // The click-through area follows the island's shape natively (Shell.svelte
+  // sends each move to shape.rs), so nothing is reported from here.
 
   /** "Ctrl+Alt+KeyY" -> "Ctrl+Alt+Y" for hints. */
   const keyName = (combo?: string) => (combo ? combo.replace(/Key([A-Z])/, "$1").replace(/Digit(\d)/, "$1") : "—");

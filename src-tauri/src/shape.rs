@@ -283,6 +283,9 @@ pub(crate) fn set_for_test(m: Option<Motion>) {
 mod tests {
     use super::*;
 
+    /// Two tests set the one shared motion; they must not overlap.
+    static SHARED: Mutex<()> = Mutex::new(());
+
     fn close(a: f64, b: f64, eps: f64, what: &str) {
         assert!((a - b).abs() <= eps, "{what}: {a} vs {b}");
     }
@@ -324,6 +327,7 @@ mod tests {
 
     #[test]
     fn glass_stays_inside_and_hover_stays_outside_the_moving_shape() {
+        let _guard = SHARED.lock().unwrap_or_else(|e| e.into_inner());
         let m = Motion { segment: panel_segment(), cx: 416.0, top: 8.0, hover_min: 128.0 };
         set_for_test(Some(m));
         for t in [45.0, 60.0, 100.0, 180.0, 250.0] {
@@ -348,6 +352,7 @@ mod tests {
 
     #[test]
     fn hover_area_never_narrower_than_its_minimum() {
+        let _guard = SHARED.lock().unwrap_or_else(|e| e.into_inner());
         let idle = Shape { w: 72.0, h: 40.0, r: 20.0 };
         let seg = Segment { t0: 0.0, from: idle, velocity: Shape::default(), to: idle, omega: 0.02 };
         set_for_test(Some(Motion { segment: seg, cx: 416.0, top: 8.0, hover_min: 128.0 }));

@@ -84,6 +84,8 @@ windows-sys = { version = "0.61", features = [
   "Win32_UI_Shell",
   "Win32_System_LibraryLoader",
   "Win32_System_SystemInformation",
+  # adaptive-island (backdrop.rs): timing the glass to the screen refresh
+  "Win32_System_Performance",
   "Win32_System_Threading",
   "Win32_UI_WindowsAndMessaging",
 ] }

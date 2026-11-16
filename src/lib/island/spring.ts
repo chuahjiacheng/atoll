@@ -107,10 +107,17 @@ export class ShapeSpring {
   private raf = 0;
   private last = 0;
   private onFrame: (f: SpringFrame) => void;
+  private onSegment?: (seg: ShapeSegment) => void;
 
-  constructor(at: Shape, onFrame: (f: SpringFrame) => void) {
+  /**
+   * `onSegment` is told about every new move and every rest position, once
+   * each: enough for anything else (the native glass) to follow the shape
+   * without being sent a single frame.
+   */
+  constructor(at: Shape, onFrame: (f: SpringFrame) => void, onSegment?: (seg: ShapeSegment) => void) {
     this.segment = still(at, clock());
     this.onFrame = onFrame;
+    this.onSegment = onSegment;
   }
 
   get target(): Shape {
@@ -131,6 +138,7 @@ export class ShapeSpring {
       this.jump(to);
       return;
     }
+    this.onSegment?.(this.segment);
     if (!this.running) {
       this.running = true;
       this.last = 0;
@@ -144,6 +152,7 @@ export class ShapeSpring {
     this.running = false;
     this.retargets = 0;
     this.segment = still(to, clock());
+    this.onSegment?.(this.segment);
     this.onFrame({ pos: { ...to }, vel: { w: 0, h: 0, r: 0 }, target: { ...to }, delta: 0, rest: true });
   }
 
@@ -162,6 +171,7 @@ export class ShapeSpring {
       this.running = false;
       this.retargets = 0;
       this.segment = still(to, t);
+      this.onSegment?.(this.segment);
       this.onFrame({ pos: { ...to }, vel: { w: 0, h: 0, r: 0 }, target: { ...to }, delta, rest: true });
       return;
     }

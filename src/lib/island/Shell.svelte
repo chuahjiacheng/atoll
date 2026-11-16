@@ -13,13 +13,13 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { onMount, tick } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { Glass } from "glisse";
   import { dur, ease, gsap, reduced } from "../motion";
   import { px } from "../theme";
   import { react } from "../glass/bridge";
-  import { ShapeSpring, type Shape, type SpringFrame } from "./spring";
+  import { ShapeSpring, type Shape, type ShapeSegment, type SpringFrame } from "./spring";
   import { metrics } from "./metrics";
+  import { sendMotion, startClock } from "./native";
 
   export type ShellMode = "pill" | "peek" | "panel";
   export type Signal = "busy" | "done" | "error" | "accent" | null;
@@ -94,10 +94,31 @@
     metrics.onFrame(f, spring?.retargets ?? 0);
   }
   let startFrame = 0;
-  onMount(() => () => {
-    cancelAnimationFrame(startFrame);
-    spring?.stop();
+  onMount(() => {
+    startClock();
+    // The island's place in its window can change without its size changing
+    // (the window is resized or zoomed): tell the native side where it is now.
+    const moved = () => spring && !spring.running && publish(spring.segment);
+    window.addEventListener("resize", moved);
+    return () => {
+      window.removeEventListener("resize", moved);
+      cancelAnimationFrame(startFrame);
+      spring?.stop();
+    };
   });
+
+  /**
+   * Every move, and every rest position, goes to the native side once
+   * (native.ts). The glass under the island and the hover test then follow
+   * the shape from the same formula and clock, with no per-frame messages.
+   * The island's centre line and top are read here, once per move: it grows
+   * and shrinks evenly around that line.
+   */
+  function publish(segment: ShapeSegment) {
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    sendMotion(segment, r.left + r.width / 2, r.top, px("--size-hover-min"));
+  }
 
   /**
    * Move the shape. `large` = a peek or the panel: growing the glass to a size
@@ -152,7 +173,7 @@
       shown = m;
       document.documentElement.style.setProperty("--island-h", `${to.h}px`);
       if (!spring) {
-        spring = new ShapeSpring(to, paint);
+        spring = new ShapeSpring(to, paint, publish);
         spring.jump(to);
         for (const k of ["pill", "peek", "panel"] as ShellMode[]) if (layers[k]) gsap.set(layers[k]!, { autoAlpha: k === m ? 1 : 0 });
         return;
@@ -217,50 +238,9 @@
     return () => observer.disconnect();
   });
 
-  // Whenever the island comes to rest at a new size, for whatever reason, the
-  // glass is fitted to exactly that size. Without this net, a stale fit left
-  // the bottom of a peek with no glass at all: see-through.
-  // Each change is also sent to Windows, which blurs the desktop under exactly
-  // this shape (backdrop.rs); a page's own backdrop-filter can't see the desktop.
-  $effect(() => {
-    const shell = el;
-    if (!shell) return;
-    let rest: ReturnType<typeof setTimeout> | undefined;
-    const report = () => {
-      const r = shell.getBoundingClientRect();
-      const radius = parseFloat(getComputedStyle(shell).borderTopLeftRadius) || 0;
-      invoke("set_backdrop", { x: r.left, y: r.top, w: r.width, h: r.height, r: radius }).catch(() => {});
-    };
-    const settle = () => {
-      if (spring?.running) return;
-      fitGlass(shell.offsetWidth, shell.offsetHeight, parseFloat(getComputedStyle(shell).borderTopLeftRadius) || 0);
-      report();
-    };
-    const observer = new ResizeObserver(() => {
-      report();
-      clearTimeout(rest);
-      // At rest once it has not changed for a short beat.
-      rest = setTimeout(settle, dur("fast") * 1000);
-    });
-    observer.observe(shell);
-    report();
-    return () => {
-      observer.disconnect();
-      clearTimeout(rest);
-    };
-  });
-
-  // Corners can change without the size changing (Corner roundness).
-  $effect(() => {
-    void sizeKey;
-    if (!el) return;
-    const shell = el;
-    const t = setTimeout(() => {
-      const r = shell.getBoundingClientRect();
-      invoke("set_backdrop", { x: r.left, y: r.top, w: r.width, h: r.height, r: parseFloat(getComputedStyle(shell).borderTopLeftRadius) || 0 }).catch(() => {});
-    }, (dur("slow") + 0.05) * 1000);
-    return () => clearTimeout(t);
-  });
+  // Corners can change without the size changing (Corner roundness), and the
+  // island can move in its window (Y position): the main effect above runs on
+  // `sizeKey` and ends in a rest position, which `publish` sends on.
 
   // Status glow fades in and out (DESIGN.md: a glow is news).
   $effect(() => {

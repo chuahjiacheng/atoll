@@ -9,6 +9,13 @@
   import { onMount } from "svelte";
   import { metrics, type IslandMetrics } from "./metrics";
   import { measurer } from "./measure";
+  import { invoke } from "@tauri-apps/api/core";
+  import { clockOffsetMs, roundTripMs } from "./native";
+
+  interface NativeMetrics {
+    glass: { mode: string; loopRunning: boolean; frames: { budgetMs: number; count: number; dropped: number; p50: number; p95: number; max: number } };
+  }
+  let glass = $state<NativeMetrics | null>(null);
 
   let m = $state<IslandMetrics>(metrics.snapshot());
   let cache = $state({ size: 0, hits: 0, misses: 0 });
@@ -18,7 +25,12 @@
       m = metrics.snapshot();
       cache = { size: measurer.cacheSize, hits: measurer.hits, misses: measurer.misses };
     };
-    const stops = [metrics.onEveryFrame(read), metrics.subscribe(read)];
+    // The native glass keeps its own frame times; ask for them once per rest.
+    const askNative = () =>
+      invoke<NativeMetrics | null>("island_metrics")
+        .then((g) => (glass = g ?? null))
+        .catch(() => {});
+    const stops = [metrics.onEveryFrame(read), metrics.subscribe(read), metrics.subscribe((s) => s.width.settled && askNative())];
     read();
     return () => stops.forEach((stop) => stop());
   });
@@ -45,6 +57,15 @@
   </div>
   <div><dt>Jump</dt><dd>{n(m.frames.longestJumpPx, 1)} px largest step</dd></div>
   <div><dt>Text</dt><dd>{cache.size} cached, {cache.hits} hits, {cache.misses} measured</dd></div>
+  {#if glass}
+    {@const f = glass.glass.frames}
+    <div>
+      <dt>Glass</dt>
+      <dd class:bad={f.dropped > 0}>
+        {glass.glass.mode}, {n(f.p50, 1)} / {n(f.p95, 1)} / {n(f.max, 1)} ms, {f.dropped} dropped of {f.count}; clock ±{n(roundTripMs / 2, 1)} ms (offset {n(clockOffsetMs(), 1)})
+      </dd>
+    </div>
+  {/if}
 </dl>
 
 <style>

@@ -1,6 +1,6 @@
 # Island metrics
 
-Owner: `adaptive-island` · Version 0.1 (draft, awaiting approval) · 2026-11-10
+Owner: `adaptive-island` · Version 0.2 (draft, awaiting approval) · 2026-11-16
 
 What the island exposes to the test harness and the dev overlay: its current
 state, its width animation and its frame times. Read-only. Nothing here leaves
@@ -115,3 +115,4 @@ interface NativeMetrics {
 ## Changelog
 
 - 0.1 (2026-11-10): first draft.
+- 0.2 (2026-11-16): after building step 2. `island_metrics` as built returns `{ version, at, shape, hit, glass: { mode, loopRunning, frames } }`, with `shape` and `hit` in CSS px inside the island window (not physical px), and takes an optional `reset: true` to clear the glass frame times. Not built yet: `clockOffsetMs` (the page holds it; see `clockOffsetMs()` in `src/lib/island/native.ts`), `glass.lastLagMs` (cannot be measured: see §5) and `arbiter` (step 4). The `island-state` and `island-rest` events are not emitted yet; use `window.__atoll.metrics.subscribe`. Release builds return `null`; the `dev.metrics` setting does not exist yet.
