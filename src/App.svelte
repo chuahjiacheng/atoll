@@ -5,7 +5,7 @@
   (lib/theme.ts) on top of the design tokens (styles/tokens.css).
 -->
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import {
     api,
@@ -34,6 +34,14 @@
   import QuestionPeek from "./lib/island/QuestionPeek.svelte";
   import FinishedPeek from "./lib/island/FinishedPeek.svelte";
   import DigestPeek from "./lib/island/DigestPeek.svelte";
+  import DevOverlay from "./lib/island/DevOverlay.svelte";
+  import { focusContract, idleContract, lyricLineWidth, lyricsContract, musicContract, statusContract, withLimits } from "./lib/island/contracts";
+  import { lineAt, planLyrics, wakeIn, type LyricsMode } from "./lib/island/lyrics-width";
+  import { DEFAULT_ORDER, createArbiter, pickPill, type Claim, type Decision, type Policy } from "./lib/island/arbiter";
+  import { measurer } from "./lib/island/measure";
+  import { exposeMetrics, metrics } from "./lib/island/metrics";
+  import { onInvalidate, resolveWidth, settleWidth, type IslandStateId } from "./lib/island/width";
+  import { px } from "./lib/theme";
   import type { TabDef } from "./lib/island/Tabs.svelte";
   import FocusTab from "./lib/views/FocusView.svelte";
   import { focusActive, focusApi, focusClockMs, focusFraction, onFocus, spokenTime, timerText, type FocusView } from "./lib/focus";
@@ -142,12 +150,33 @@
   /** The synced line being sung, with its start time (so a repeated line still rolls in);
    *  null (so title · artist shows) before the first line or without synced lyrics. */
   const pillLyric = $derived.by<{ text: string; at: number } | null>(() => {
-    if (!lyricsInPill || !track || !player || lyrics?.trackId !== track.id || lyrics.instrumental) return null;
-    const lines = lyrics.synced;
-    const pos = positionMs(player, now);
-    let i = -1;
-    for (let k = 0; k < lines.length && lines[k].t <= pos; k++) i = k;
-    return i < 0 ? null : { text: lines[i].text || "♪", at: lines[i].t };
+    if (!lyricLines || !player) return null;
+    const i = lineAt(lyricLines, positionMs(player, lyricNow));
+    return i < 0 ? null : { text: lyricLines[i].text || "♪", at: lyricLines[i].t };
+  });
+  /** The synced lines of the track that is playing (null: none, not loaded yet, or instrumental). */
+  const lyricLines = $derived(
+    lyricsInPill && track && lyrics?.trackId === track.id && !lyrics.instrumental && lyrics.synced.length ? lyrics.synced : null,
+  );
+  /** When the sung line was last worked out. Set by a timer aimed at each line
+   *  (and at the moment its width change is due), not by the general tick, so
+   *  a line lands on time instead of up to a tick late. */
+  let lyricNow = $state(Date.now());
+  $effect(() => {
+    if (!lyricLines || !player || !playing || !musicInPill) return;
+    const lines = lyricLines;
+    const p = player;
+    const lead = seconds("--dur-lyric-lead") * 1000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onLine = () => {
+      const t = Date.now();
+      lyricNow = t;
+      const wait = wakeIn(lines, positionMs(p, t), lead);
+      // Nothing is scheduled after the last line, while paused, or with the pill showing something else.
+      if (wait !== null) timer = setTimeout(onLine, Math.max(16, wait + 4));
+    };
+    onLine();
+    return () => clearTimeout(timer);
   });
 
   // ---------- calendar ----------
@@ -193,25 +222,41 @@
     await api.replyInClaude(s.id, text);
   }
   const mode = $derived<"pill" | "peek" | "panel">(perm || asking ? "peek" : expanded ? "panel" : digest || finished ? "peek" : "pill");
-  // Needs you and errors always beat music. Busy and a fresh "done" beat music
-  // too, unless Settings → Spotify gives music the pill. Music beats idle.
+  // ---------- which state gets the pill (src-tauri/src/arbiter.rs) ----------
+  // Every source only says what it has to offer; the arbiter decides. Needs
+  // you and errors come first, then the focus timer, then agent status, an
+  // event about to start, and music (Settings → Spotify can put music ahead).
   const musicFirst = $derived(settings?.spotify.pillPriority === "spotify");
-  const claudeUrgent = $derived(pillStatus === "attention" || pillStatus === "error");
-  // The focus timer beats everything but "needs you", and errors unless focus holds or silences them.
-  const timerYields = $derived(pillStatus === "attention" || (pillStatus === "error" && (!dnd || settings?.focus.errors === "show")));
-  // An event about to start beats music, idle and a finished task; Claude
-  // working, needs you, errors and the focus timer beat it.
-  const eventFirst = $derived(!!soon && (!pillStatus || pillStatus === "done"));
+  const claims = $derived.by<Claim[]>(() => {
+    const c: Claim[] = [];
+    if (perm) c.push({ key: perm.questions?.length ? "peek:question" : "peek:permission", token: String(perm.id) });
+    if (asking) c.push({ key: "peek:ask", token: askKey(asking) });
+    if (expanded) c.push({ key: "panel" });
+    if (digest) c.push({ key: "peek:digest", token: String(digestKey) });
+    if (finished) c.push({ key: "peek:finished", token: finished.id });
+    if (pillStatus === "attention") c.push({ key: "needs-you" });
+    else if (pillStatus === "error") c.push({ key: "error" });
+    else if (pillStatus === "working") c.push({ key: "busy" });
+    else if (pillStatus === "done") c.push({ key: "done" });
+    if (timer) c.push({ key: "focus" });
+    if (soon) c.push({ key: "event" });
+    if (musicInPill) c.push({ key: "music" });
+    return c;
+  });
+  const policy = $derived<Policy>({ musicFirst, focusDnd: dnd, errorsInFocus: settings?.focus.errors === "show" });
+  let decision = $state<Decision | null>(null);
+  const arbiter = createArbiter((d) => (decision = d));
+  // Posted only when the set of claims changes, never on a tick.
+  const claimSig = $derived(JSON.stringify([claims, policy]));
+  $effect(() => {
+    void claimSig;
+    untrack(() => arbiter.post(claims, policy));
+  });
+  /** The first state in the arbiter's order that is still on offer: a state
+   *  that ends is replaced at once, a new one waits for the arbiter's answer. */
+  const pillKey = $derived(pickPill(decision?.order ?? DEFAULT_ORDER, new Set(claims.map((c) => c.key))));
   const pillKind = $derived<"idle" | "status" | "music" | "timer" | "event">(
-    timer && !timerYields
-      ? "timer"
-      : eventFirst && !claudeUrgent
-        ? "event"
-        : pillStatus && (claudeUrgent || !musicFirst || !musicInPill)
-          ? "status"
-          : musicInPill
-            ? "music"
-            : "idle",
+    pillKey === "focus" ? "timer" : pillKey === "event" || pillKey === "music" || pillKey === "idle" ? pillKey : "status",
   );
   const timerNote = $derived(nudging && timer?.nudge ? `${timer.nudge.app} · back to focus?` : (timer?.intention ?? ""));
   /** Settings → Appearance size and roundness: the outline re-fits as soon as any of them change. */
@@ -255,14 +300,10 @@
   function applySettings(s: Settings) {
     settings = s;
     applyAppearance(s.appearance);
+    // Sizes and type may have changed: measure text afresh.
+    measurer.clear();
     // Settings → Mascot → Show Pip off hides Pip everywhere in the island (app.css).
     document.documentElement.dataset.mascot = s.modules.mascot ? "on" : "off";
-  }
-
-  function reportRect() {
-    if (!shellEl) return;
-    const r = shellEl.getBoundingClientRect();
-    api.setHitRect({ x: r.left, y: r.top, w: r.width, h: r.height });
   }
 
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
@@ -383,6 +424,10 @@
   }
 
   onMount(() => {
+    exposeMetrics();
+    // Text is measured only once the fonts are in; until then states sit at their minimum width.
+    const stopMeasure = [measurer.onChange(() => measured++), onInvalidate(() => measured++)];
+    measurer.start();
     settingsApi.get().then(applySettings);
     api.getSessions().then((s) => {
       s.forEach((x) => lastStatus.set(x.id, x.status));
@@ -474,6 +519,8 @@
     const premount = setTimeout(() => (panelMounted = true), 1500);
     return () => {
       clearTimeout(premount);
+      arbiter.stop();
+      stopMeasure.forEach((stop) => stop());
       window.removeEventListener("pointerdown", pointerInput, true);
       window.removeEventListener("keydown", keyInput, true);
       unlisten.forEach((p) => p.then((f) => f()));
@@ -498,8 +545,8 @@
   // The clock only ticks while something on screen depends on time.
   // Idle and collapsed, nothing runs.
   const needsClock = $derived(expanded || !!perm || !!asking || !!finished || musicInPill || pillStatus === "working" || pillStatus === "done" || !!timer);
-  // Lyrics in the pill tick faster so each line lands on the beat.
-  const tickMs = $derived(mode === "pill" && pillKind === "music" && lyricsInPill ? 250 : seconds("--dur-tick") * 1000);
+  // (Lyric lines have their own timer, aimed at each line: see lyricNow.)
+  const tickMs = $derived(seconds("--dur-tick") * 1000);
   $effect(() => {
     if (!needsClock) return;
     now = Date.now();
@@ -507,14 +554,8 @@
     return () => clearInterval(id);
   });
 
-  // Keep the click-through area equal to the island while it morphs.
-  $effect(() => {
-    if (!shellEl) return;
-    const observer = new ResizeObserver(reportRect);
-    observer.observe(shellEl);
-    reportRect();
-    return () => observer.disconnect();
-  });
+  // The click-through area follows the island's shape natively (Shell.svelte
+  // sends each move to shape.rs), so nothing is reported from here.
 
   /** "Ctrl+Alt+KeyY" -> "Ctrl+Alt+Y" for hints. */
   const keyName = (combo?: string) => (combo ? combo.replace(/Key([A-Z])/, "$1").replace(/Digit(\d)/, "$1") : "—");
@@ -548,14 +589,179 @@
     if (pillKind === "status" && top && pillStatus) return `Agent ${STATUS_LOOK[pillStatus].word}: ${summary(top, live)}. Open Atoll`;
     return "Atoll, idle. Open";
   });
+
+  // ---------- adaptive width (docs/contracts/width-contract.md) ----------
+  // The pill is as wide as what it shows: each state declares its width
+  // contract, the island resolves one width from it and Shell springs there.
+  const eventWord = $derived(soon ? (untilText(soon.startMs, now) === "now" ? "Now" : untilText(soon.startMs, now).replace(/^in /, "In ")) : "");
+  const timerWord = $derived(timer ? (!timer.running ? "Paused" : timer.phase === "break" ? "Break" : "Focus") : "");
+  const timerTime = $derived(timer ? timerText(focusClockMs(timer, now), !timer.lengthMs) : "");
+  const statusText = $derived(top ? summary(top, live) : "");
+  const statusMeta = $derived(pillStatus === "working" && top ? elapsed(now - top.startedAt) : "");
+  const showPip = $derived(settings?.modules.mascot ?? true);
+  const pillState = $derived<IslandStateId>(
+    pillKind === "timer"
+      ? "focus"
+      : pillKind === "music"
+        ? lyricsInPill
+          ? "lyrics"
+          : "music"
+        : pillKind === "event"
+          ? "event"
+          : pillKind === "status" && pillStatus && pillStatus !== "idle"
+            ? pillStatus === "working"
+              ? "busy"
+              : pillStatus
+            : "idle",
+  );
+  /** Bumped when text may measure differently (fonts arrived, display scale changed, a state asked). */
+  let measured = $state(0);
+
+  // Lyrics: the pill keeps its fixed size (Collapsed width) and only grows for
+  // a line too long to fit, then goes back (lyrics-width.ts).
+  // Settings → Spotify will choose the mode; until that setting exists it is Follow.
+  const lyricsMode = $derived<LyricsMode>((settings?.spotify as { lyricsWidth?: LyricsMode } | undefined)?.lyricsWidth ?? "follow");
+  const lyricWidths = $derived.by(() => {
+    void measured;
+    return lyricLines && measurer.ready ? lyricLines.map((l) => lyricLineWidth(measurer, l.text || "♪")) : null;
+  });
+  const titleWidth = $derived.by(() => {
+    void measured;
+    return track && measurer.ready ? musicContract({ title: track.name, artist: track.artists }).measure(measurer) : 0;
+  });
+  const lyricPlan = $derived.by(() => {
+    if (pillState !== "lyrics" || !player) return null;
+    return planLyrics({
+      mode: lyricsMode,
+      lines: lyricLines ?? [],
+      widths: lyricWidths ?? [],
+      titleWidth,
+      base: pillCeiling,
+      pos: positionMs(player, lyricNow),
+      lead: seconds("--dur-lyric-lead") * 1000,
+      lookahead: seconds("--dur-lyric-lookahead") * 1000,
+      step: px("--lyrics-step"),
+    });
+  });
+  const pillContract = $derived.by(() => {
+    void measured;
+    const c =
+      pillState === "focus" && timer
+        ? focusContract({ time: timerTime, word: timerWord, strong: nudging, note: timerNote })
+        : pillState === "lyrics"
+          ? lyricsContract(lyricPlan?.width ?? pillCeiling)
+          : pillState === "music" && track
+            ? musicContract({ title: track.name, artist: track.artists })
+            : pillState === "event" && soon
+              ? statusContract("event", { word: eventWord, text: soon.title, showPip })
+              : pillKind === "status" && top && pillStatus
+                ? statusContract(pillState, { word: STATUS_LOOK[pillStatus].word, text: statusText, meta: statusMeta, showPip })
+                : idleContract(showPip);
+    return withLimits(c, measurer);
+  });
+  /** Settings → Appearance → Collapsed width is now the widest the pill gets. */
+  const pillCeiling = $derived(settings?.appearance.collapsedWidth ?? 384);
+  /** A long lyric line may take the pill past that, up to the width of the open panel. */
+  const lyricsCeiling = $derived(Math.max(pillCeiling, settings?.appearance.expandedWidth ?? pillCeiling));
+  const pillFit = $derived.by(() => {
+    void measured;
+    return resolveWidth(pillContract, measurer, pillState === "lyrics" ? lyricsCeiling : pillCeiling);
+  });
+  let pillW = $state(64);
+  /** What the current width belongs to: the state, and for music the track too
+   *  (a new song takes its own width at once, like a new state). */
+  const widthKey = $derived(pillState === "lyrics" || pillState === "music" ? `${pillState}|${track?.id ?? ""}` : pillState);
+  let widthFor: string | null = null;
+  $effect(() => {
+    const fit = pillFit;
+    const key = widthKey;
+    // Lyrics → Follow each line: every line takes its own width, both ways, at once.
+    const everyLine = pillState === "lyrics" && lyricsMode === "follow";
+    const band = () => px(pillState === "lyrics" ? "--lyrics-deadband" : "--width-deadband");
+    untrack(() => {
+      // A new state takes its own width at once. Within one state the pill
+      // grows at once (or its text would be cut) but is slow to shrink: small
+      // differences are ignored, and a real one must last a few seconds first.
+      // Otherwise a busy agent's step names would make the pill breathe.
+      const next = key === widthFor && !everyLine ? settleWidth(pillW, fit.width, band()) : fit.width;
+      if (key !== widthFor || everyLine || next >= pillW) {
+        clearTimeout(shrinkTimer);
+        shrinkTimer = undefined;
+        pillW = next;
+        widthFor = key;
+      } else if (!shrinkTimer) {
+        shrinkTimer = setTimeout(() => {
+          shrinkTimer = undefined;
+          if (widthKey === widthFor) pillW = settleWidth(pillW, pillFit.width, band());
+        }, seconds("--dur-width-hold") * 1000);
+      }
+    });
+  });
+  let shrinkTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // What the island is showing and why, for the dev overlay and the test harness.
+  const islandState = $derived(
+    mode === "panel"
+      ? "panel"
+      : mode === "peek"
+        ? perm?.questions?.length
+          ? "peek:question"
+          : perm
+            ? "peek:permission"
+            : asking
+              ? "peek:ask"
+              : digest
+                ? "peek:digest"
+                : "peek:finished"
+        : pillState,
+  );
+  const islandReason = $derived.by(() => {
+    if (mode === "panel") return hovering ? "pointer is over the island" : pinned ? "opened by click or hotkey" : dropping ? "something is being dragged in" : previewExpanded ? "shown open by Settings" : "a text box has focus";
+    if (mode === "peek") return perm ? "a permission request or question is waiting" : asking ? "Claude asked a question" : digest ? "break started: what was held during focus" : "a task just finished";
+    // The pill: the arbiter's own reason (until its answer for a state that just ended arrives, the next in its order).
+    return decision && decision.pill === pillKey && !decision.surface ? decision.reason : pillKey === "idle" ? "nothing to show" : `next in the arbiter's order: ${pillKey}`;
+  });
+  $effect(() => {
+    metrics.setState(islandState, islandReason);
+    metrics.setLimits(pillContract.min, Math.max(pillContract.min, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
+    metrics.lyrics = lyricPlan
+      ? {
+          mode: lyricsMode,
+          line: lyricPlan.line,
+          nextChangeIn: lyricPlan.wakeIn ?? -1,
+          lookaheadTarget: Number.isFinite(lyricPlan.width) ? lyricPlan.width : pillCeiling,
+        }
+      : null;
+  });
+
+  // Dev overlay (debug builds): Ctrl + Shift + click the island.
+  let devOverlay = $state(import.meta.env.DEV && readFlag("atoll.devOverlay"));
+  function readFlag(key: string) {
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  }
+  function devClick(e: MouseEvent) {
+    if (!import.meta.env.DEV || !e.ctrlKey || !e.shiftKey) return;
+    e.stopPropagation();
+    e.preventDefault();
+    devOverlay = !devOverlay;
+    try {
+      localStorage.setItem("atoll.devOverlay", devOverlay ? "1" : "0");
+    } catch {}
+  }
 </script>
 
 <div class="sr-only" aria-live="polite">{announce}</div>
-<div class="stage">
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+<div class="stage" onclickcapture={devClick}>
   {#if settings}
     <Shell
       {mode}
-      pillWidth={pillKind === "idle" ? "idle" : pillKind === "timer" && !timerNote ? "timer" : "status"}
+      {pillW}
+      quiet={pillState === "idle"}
       {sizeKey}
       {signal}
       progress={mode === "pill" && pillKind === "music" ? progress : null}
@@ -564,15 +770,19 @@
       panel={panelMounted ? panelLayer : undefined}
     >
       {#snippet pill()}
+        <!-- One block per state: when the state changes, the old content
+             blurs out at its old width while the new one arrives at its own. -->
+        {#key pillState}
         {#if pillKind === "timer" && timer}
           <Pill
             kind="timer"
             {tone}
             tint={nudging ? "accent" : timer.phase === "break" ? "done" : "busy"}
             ring={timer.lengthMs ? focusFraction(timer, now) : 0}
-            time={timerText(focusClockMs(timer, now), !timer.lengthMs)}
-            word={!timer.running ? "Paused" : timer.phase === "break" ? "Break" : "Focus"}
+            time={timerTime}
+            word={timerWord}
             text={timerNote}
+            width={pillW}
             label={pillLabel}
             onclick={() => openPanel("focus")}
           />
@@ -587,6 +797,7 @@
             lyricAt={pillLyric?.at ?? null}
             roll={lyricsInPill}
             {playing}
+            width={pillW}
             label={pillLabel}
             onclick={() => openPanel(chosenTab)}
           />
@@ -596,9 +807,10 @@
             {tone}
             mood="idle"
             icon="calendar"
-            word={untilText(soon.startMs, now) === "now" ? "Now" : untilText(soon.startMs, now).replace(/^in /, "In ")}
+            word={eventWord}
             tint="accent"
             text={soon.title}
+            width={pillW}
             label={pillLabel}
             onclick={() => openPanel(tabs.some((t) => t.id === "calendar") ? "calendar" : chosenTab)}
           />
@@ -611,17 +823,22 @@
             icon={look.icon}
             word={look.word}
             tint={pillStatus === "working" ? "busy" : pillStatus === "done" ? "done" : pillStatus === "error" ? "error" : "accent"}
-            text={summary(top, live)}
-            meta={pillStatus === "working" ? elapsed(now - top.startedAt) : ""}
+            text={statusText}
+            meta={statusMeta}
             bob={playing && settings!.mascot.reactMusic}
+            width={pillW}
             label={pillLabel}
             onclick={() => openPanel(chosenTab)}
           />
         {:else}
-          <Pill kind="idle" {tone} bob={playing && settings!.mascot.reactMusic} label={pillLabel} onclick={() => openPanel(chosenTab)} />
+          <Pill kind="idle" {tone} bob={playing && settings!.mascot.reactMusic} width={pillW} label={pillLabel} onclick={() => openPanel(chosenTab)} />
         {/if}
+        {/key}
       {/snippet}
     </Shell>
+    {#if devOverlay}
+      <div class="dev"><DevOverlay {decision} /></div>
+    {/if}
 
     {#snippet peekLayer()}
       {#if perm?.questions?.length}
@@ -741,6 +958,16 @@
     height: 100%;
     padding-top: var(--stage-top);
     box-sizing: border-box;
+    position: relative;
+  }
+  /* Dev overlay: just under the island, kept inside the window when the panel is open. */
+  .dev {
+    position: absolute;
+    left: 50%;
+    top: min(calc(var(--stage-top) + var(--island-h, var(--pill-h)) + var(--sp-8)), calc(100% - 10.5em));
+    transform: translateX(-50%);
+    z-index: 10;
+    pointer-events: none;
   }
   .drop {
     position: absolute;

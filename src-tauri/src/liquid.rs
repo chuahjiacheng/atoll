@@ -359,16 +359,15 @@ impl Liquid {
     }
 
     /// New shape/look or window position: redraw from the last frame.
-    pub fn set(&self, look: Look, window: (i32, i32, i32, i32)) {
+    /// Returns whether a frame was presented (which waits for the screen).
+    pub fn set(&self, look: Look, window: (i32, i32, i32, i32)) -> bool {
         let mut g = self.0.lock().unwrap();
         if g.look == look && g.window == window {
-            return;
+            return false;
         }
         g.look = look;
         g.window = window;
-        unsafe {
-            let _ = g.draw();
-        }
+        g.source.is_some() && unsafe { g.draw().is_ok() }
     }
 
     fn on_frame(&self, pool: &Direct3D11CaptureFramePool) {

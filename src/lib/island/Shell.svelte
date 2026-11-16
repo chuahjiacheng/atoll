@@ -1,28 +1,33 @@
 <!--
   The island's glass body. Its outline morphs between a floating pill, a peek
-  and the expanded panel (GSAP, motion tokens), with the status glow around it.
+  and the expanded panel, with the status glow around it. The pill is as wide
+  as its content (docs/contracts/width-contract.md).
 
-  Smoothness: the pill, peek and panel are three fixed-size layers stacked in
-  the shell. Morphing only resizes the (otherwise empty) shell and cross-fades
-  the layers, so nothing inside is laid out again on any frame, and the panel
-  stays mounted between opens.
+  Smoothness: the pill, peek and panel are three layers stacked in the shell,
+  each laid out at its final size and centred. Morphing only resizes the
+  (otherwise empty) shell on a spring and cross-fades the layers, so nothing
+  inside is laid out again on any frame, text never reflows mid-move, and the
+  panel stays mounted between opens. The shell grows and shrinks evenly
+  around its centre, revealing or covering the content from both sides.
 -->
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { tick } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
+  import { onMount, tick } from "svelte";
   import { Glass } from "glisse";
   import { dur, ease, gsap, reduced } from "../motion";
   import { px } from "../theme";
   import { react } from "../glass/bridge";
+  import { ShapeSpring, type Shape, type ShapeSegment, type SpringFrame } from "./spring";
+  import { metrics } from "./metrics";
+  import { sendMotion, startClock } from "./native";
 
   export type ShellMode = "pill" | "peek" | "panel";
-  export type PillWidth = "idle" | "status" | "timer";
   export type Signal = "busy" | "done" | "error" | "accent" | null;
 
   let {
     mode,
-    pillWidth = "idle",
+    pillW,
+    quiet = false,
     signal = null,
     progress = null,
     sizeKey = "",
@@ -32,7 +37,10 @@
     el = $bindable(),
   }: {
     mode: ShellMode;
-    pillWidth?: PillWidth;
+    /** How wide the collapsed pill should be (px), resolved from its width contract. */
+    pillW: number;
+    /** The pill shows no text (idle): it may be more see-through. */
+    quiet?: boolean;
     signal?: Signal;
     /** Changes whenever the island's size settings do, so the outline re-fits
      *  to the new size tokens without waiting for the next open or close. */
@@ -50,38 +58,124 @@
   let layers: Record<ShellMode, HTMLDivElement | undefined> = $state({ pill: undefined, peek: undefined, panel: undefined });
   let lastSignal = $state<Exclude<Signal, null>>("busy");
 
-  function target(m: ShellMode) {
+  function target(m: ShellMode): Shape {
     const roundness = px("--roundness");
-    if (m === "panel") return { width: px("--panel-w"), height: px("--panel-h"), radius: px("--r-panel") * roundness };
-    if (m === "peek") return { width: px("--size-peek-w"), height: layers.peek?.offsetHeight ?? 0, radius: px("--r-peek") * roundness };
+    if (m === "panel") return { w: px("--panel-w"), h: px("--panel-h"), r: px("--r-panel") * roundness };
+    if (m === "peek") return { w: px("--size-peek-w"), h: layers.peek?.offsetHeight ?? 0, r: px("--r-peek") * roundness };
     const h = px("--pill-h");
-    const w = pillWidth === "status" ? px("--status-w") : pillWidth === "timer" ? px("--timer-w") : px("--idle-w");
-    return { width: w, height: h, radius: (h / 2) * roundness };
+    return { w: pillW, h, r: (h / 2) * roundness };
   }
 
-  /** The glass only re-fits once per morph: it takes the larger size during the move. */
+  /** Spring stiffness (1/s) for a move, scaled by the user's animation speed. */
+  function stiffness(name: "expand" | "collapse" | "grow" | "shrink") {
+    return px(`--spring-${name}`) * (px("--speed") || 1);
+  }
+
+  /** The glass only re-fits at the start and end of a move: it takes the larger size meanwhile. */
+  let glassSize = { w: 0, h: 0 };
   function fitGlass(width: number, height: number, radius: number) {
-    if (glassBox) gsap.set(glassBox, { width, height, borderRadius: radius });
+    if (!glassBox) return;
+    gsap.set(glassBox, { width, height, borderRadius: radius });
+    glassSize = { w: width, h: height };
   }
 
-  let first = true;
+  // ---------- the shape ----------
+  // Width, height and corner radius ride one spring (spring.ts). A frame loop
+  // exists only while the shape is moving; at rest nothing is scheduled.
+  let spring: ShapeSpring | null = null;
+  function paint(f: SpringFrame) {
+    if (!el) return;
+    // Corners never exceed half the height, so a pill stays a pill all the way.
+    const r = Math.max(0, Math.min(f.pos.r, f.pos.h / 2));
+    el.style.width = `${f.pos.w}px`;
+    el.style.height = `${f.pos.h}px`;
+    el.style.borderRadius = `${r}px`;
+    if (f.rest) fitGlass(f.pos.w, f.pos.h, r);
+    metrics.onFrame(f, spring?.retargets ?? 0);
+  }
+  let startFrame = 0;
+  onMount(() => {
+    startClock();
+    // The island's place in its window can change without its size changing
+    // (the window is resized or zoomed): tell the native side where it is now.
+    const moved = () => spring && !spring.running && publish(spring.segment);
+    window.addEventListener("resize", moved);
+    return () => {
+      window.removeEventListener("resize", moved);
+      cancelAnimationFrame(startFrame);
+      spring?.stop();
+    };
+  });
+
+  /**
+   * Every move, and every rest position, goes to the native side once
+   * (native.ts). The glass under the island and the hover test then follow
+   * the shape from the same formula and clock, with no per-frame messages.
+   * The island's centre line and top are read here, once per move: it grows
+   * and shrinks evenly around that line.
+   */
+  function publish(segment: ShapeSegment) {
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    sendMotion(segment, r.left + r.width / 2, r.top, px("--size-hover-min"));
+  }
+
+  /**
+   * Move the shape. `large` = a peek or the panel: growing the glass to a size
+   * that big makes glisse redraw its rim, which can take longer than a frame
+   * (measured: 14 ms for a peek, 69 ms for a first panel). That cost is paid
+   * BEFORE the shape starts moving (the spring starts two frames later), so it
+   * shows as a start a few milliseconds late, never as a hitch mid-move.
+   */
+  function moveTo(to: Shape, omega: number, large = false) {
+    if (!spring) return;
+    cancelAnimationFrame(startFrame);
+    if (reduced()) {
+      // Reduce motion: the shape is simply there; the content cross-fades.
+      spring.jump(to);
+      return;
+    }
+    const at = spring.now().pos;
+    // Pill-to-pill moves borrow one size the glass has already drawn (the
+    // widest pill, warmed at start-up) instead of a new in-between size, so no
+    // rim is redrawn mid-move; the exact fit happens once the shape is at rest.
+    const w = Math.max(at.w, to.w, large ? 0 : px("--status-w"));
+    const h = Math.max(at.h, to.h);
+    const glassGrows = w > glassSize.w + 0.5 || h > glassSize.h + 0.5;
+    fitGlass(w, h, to.r);
+    if (large && glassGrows && !spring.running) {
+      // Start once frames are arriving on time again (at least two frames, at
+      // most four): the redraw spreads over a frame or three.
+      let last = 0;
+      let seen = 0;
+      const wait = (stamp: number) => {
+        const late = last ? stamp - last > metrics.budgetMs * 1.5 : true;
+        last = stamp;
+        if (++seen >= 5 || (seen >= 3 && !late)) spring?.to(to, omega);
+        else startFrame = requestAnimationFrame(wait);
+      };
+      startFrame = requestAnimationFrame(wait);
+    } else {
+      spring.to(to, omega);
+    }
+  }
+
   let shown: ShellMode = "pill";
   $effect(() => {
     const m = mode;
-    void pillWidth;
+    void pillW;
     void sizeKey;
     if (!el) return;
     tick().then(() => {
       if (!el) return;
-      const from = { width: el.offsetWidth, height: el.offsetHeight };
       const to = target(m);
       const prev = shown;
       shown = m;
-      if (first) {
-        gsap.set(el, { width: to.width, height: to.height, borderRadius: to.radius });
-        fitGlass(to.width, to.height, to.radius);
+      document.documentElement.style.setProperty("--island-h", `${to.h}px`);
+      if (!spring) {
+        spring = new ShapeSpring(to, paint, publish);
+        spring.jump(to);
         for (const k of ["pill", "peek", "panel"] as ShellMode[]) if (layers[k]) gsap.set(layers[k]!, { autoAlpha: k === m ? 1 : 0 });
-        first = false;
         return;
       }
       // Any layer that is neither leaving nor arriving stays hidden. Its
@@ -92,21 +186,8 @@
       }
       const name = m === "panel" ? "expand" : m === "peek" ? "peek" : prev === "pill" ? "slow" : "collapse";
       const d = dur(name);
-      fitGlass(Math.max(from.width, to.width), Math.max(from.height, to.height), to.radius);
-      gsap.to(el, {
-        width: to.width,
-        height: to.height,
-        borderRadius: to.radius,
-        duration: d,
-        ease: ease(),
-        overwrite: "auto",
-        // Measured again at the end, not reused from the start: a peek's
-        // buttons render a frame late, so it ends taller than it began.
-        onComplete: () => {
-          const end = target(shown);
-          fitGlass(end.width, Math.max(end.height, el?.offsetHeight ?? 0), end.radius);
-        },
-      });
+      const move = m !== "pill" ? "expand" : prev !== "pill" ? "collapse" : to.w >= spring.target.w ? "grow" : "shrink";
+      moveTo(to, stiffness(move), m !== "pill");
       if (prev !== m) {
         const out = layers[prev];
         const inn = layers[m];
@@ -129,11 +210,15 @@
   $effect(() => {
     if (warmed || !layers.panel || !glassBox || !el) return;
     warmed = true;
-    const t = target(mode);
+    const quiet = () => shown === "pill" && !spring?.running;
     requestAnimationFrame(() => {
       fitGlass(px("--panel-w"), px("--panel-h"), px("--r-panel") * px("--roundness"));
       setTimeout(() => {
-        if (shown === "pill") fitGlass(t.width, t.height, t.radius);
+        if (!quiet()) return;
+        // The widest pill too: every pill-to-pill move borrows this size.
+        const t = target("pill");
+        fitGlass(Math.max(t.w, px("--status-w")), t.h, t.r);
+        setTimeout(() => quiet() && fitGlass(t.w, t.h, t.r), 250);
       }, 250);
     });
   });
@@ -143,58 +228,19 @@
     const layer = layers.peek;
     if (mode !== "peek" || !layer || !el) return;
     const observer = new ResizeObserver(() => {
-      if (mode !== "peek" || !el || !layer) return;
-      const h = layer.offsetHeight;
-      fitGlass(px("--size-peek-w"), Math.max(h, el.offsetHeight), px("--r-peek") * px("--roundness"));
-      gsap.to(el, { height: h, duration: dur("fast"), ease: ease(), overwrite: "auto" });
+      if (mode !== "peek" || !el || !layer || shown !== "peek") return;
+      const to = target("peek");
+      if (spring && Math.abs(to.h - spring.target.h) < 0.5) return;
+      document.documentElement.style.setProperty("--island-h", `${to.h}px`);
+      moveTo(to, stiffness("grow"), true);
     });
     observer.observe(layer);
     return () => observer.disconnect();
   });
 
-  // Whenever the island comes to rest at a new size, for whatever reason, the
-  // glass is fitted to exactly that size. Without this net, a stale fit left
-  // the bottom of a peek with no glass at all: see-through.
-  // Each change is also sent to Windows, which blurs the desktop under exactly
-  // this shape (backdrop.rs); a page's own backdrop-filter can't see the desktop.
-  $effect(() => {
-    const shell = el;
-    if (!shell) return;
-    let rest: ReturnType<typeof setTimeout> | undefined;
-    const report = () => {
-      const r = shell.getBoundingClientRect();
-      const radius = parseFloat(getComputedStyle(shell).borderTopLeftRadius) || 0;
-      invoke("set_backdrop", { x: r.left, y: r.top, w: r.width, h: r.height, r: radius }).catch(() => {});
-    };
-    const settle = () => {
-      fitGlass(shell.offsetWidth, shell.offsetHeight, parseFloat(getComputedStyle(shell).borderTopLeftRadius) || 0);
-      report();
-    };
-    const observer = new ResizeObserver(() => {
-      report();
-      clearTimeout(rest);
-      // At rest once it has not changed for a short beat.
-      rest = setTimeout(settle, dur("fast") * 1000);
-    });
-    observer.observe(shell);
-    report();
-    return () => {
-      observer.disconnect();
-      clearTimeout(rest);
-    };
-  });
-
-  // Corners can change without the size changing (Corner roundness).
-  $effect(() => {
-    void sizeKey;
-    if (!el) return;
-    const shell = el;
-    const t = setTimeout(() => {
-      const r = shell.getBoundingClientRect();
-      invoke("set_backdrop", { x: r.left, y: r.top, w: r.width, h: r.height, r: parseFloat(getComputedStyle(shell).borderTopLeftRadius) || 0 }).catch(() => {});
-    }, (dur("slow") + 0.05) * 1000);
-    return () => clearTimeout(t);
-  });
+  // Corners can change without the size changing (Corner roundness), and the
+  // island can move in its window (Y position): the main effect above runs on
+  // `sizeKey` and ends in a rest position, which `publish` sends on.
 
   // Status glow fades in and out (DESIGN.md: a glow is news).
   $effect(() => {
@@ -204,13 +250,13 @@
   });
 </script>
 
-<div class="shell {mode}" class:text={mode !== "pill" || pillWidth !== "idle"} data-signal={signal ?? lastSignal} bind:this={el}>
+<div class="shell {mode}" class:text={mode !== "pill" || !quiet} data-signal={signal ?? lastSignal} bind:this={el}>
   <!-- glisse Liquid Glass body (rim light), tinted with the hull. -->
   <span class="glass-box" bind:this={glassBox}>
     <span class="glass-host" use:react={{ component: Glass, props: { className: "shell-glass" } }}></span>
   </span>
 
-  <div class="layer pill-layer" style="width: var(--{pillWidth}-w)" bind:this={layers.pill} inert={mode !== "pill"}>
+  <div class="layer pill-layer" style="--w: {pillW}px" bind:this={layers.pill} inert={mode !== "pill"}>
     {@render pill()}
   </div>
   {#if peek}
@@ -273,19 +319,33 @@
   }
   .glass-host { display: contents; }
 
-  /* Fixed-size layers, centred at the top: the shell clips them while it morphs. */
+  /* Layers at their final size, centred at the top: the shell clips them
+     evenly on both sides while it morphs. (Centred with a margin, not a
+     transform: GSAP owns the layers' transforms.) */
   .layer {
     position: absolute;
     top: 0;
-    left: 0;
-    right: 0;
-    margin: 0 auto;
+    left: 50%;
+    width: var(--w);
+    margin-left: calc(var(--w) / -2);
     box-sizing: border-box;
     z-index: 1;
   }
-  .pill-layer { height: var(--pill-h); }
-  .peek-layer { width: var(--size-peek-w); }
-  .panel-layer { width: var(--panel-w); height: var(--panel-h); }
+  /* The pill's content is anchored to the island's left edge, not centred: its
+     leading mark (Pip, album art, timer ring) rides that edge as the island
+     grows, and the text is uncovered by the right edge. Centred, the leading
+     mark hopped sideways and was clipped whenever the content got wider.
+     The leaving and arriving contents share one cell while they cross-fade. */
+  .pill-layer {
+    left: 0;
+    margin-left: 0;
+    height: var(--pill-h);
+    display: grid;
+    justify-items: start;
+  }
+  .pill-layer > :global(*) { grid-area: 1 / 1; }
+  .peek-layer { --w: var(--size-peek-w); }
+  .panel-layer { --w: var(--panel-w); height: var(--panel-h); }
   /* The panel is built in the background after start-up (and peeks appear
      later too): they start hidden, and only GSAP's fade shows them. */
   .peek-layer,

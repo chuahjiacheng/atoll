@@ -235,15 +235,114 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
         WM_MOUSEACTIVATE => MA_NOACTIVATE as LRESULT,
         WM_APP => {
             PENDING.store(false, Ordering::Release);
-            sync(hwnd);
+            frame(hwnd);
             0
         }
         WM_TIMER => {
-            sync(hwnd);
+            // The slow resync. While a move is running, its own frames do this.
+            if !crate::shape::moving(crate::shape::now_ms()) {
+                sync(hwnd);
+            }
             0
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }
+}
+
+/// One frame of the glass. While the island's shape is moving (shape.rs) this
+/// repeats once per screen refresh, each time drawing the rectangle the shape
+/// has at that moment; when the shape comes to rest it stops, and the helper
+/// goes back to waking only on changes and its slow resync timer.
+unsafe fn frame(hwnd: HWND) {
+    let t = crate::shape::now_ms();
+    let in_run = crate::shape::moving(t);
+    let drew = sync(hwnd);
+    if let Some(d) = &drew {
+        crate::shape::glass_drew(t, in_run, if d.liquid { "liquid" } else { "frosted" }, d.rect);
+    } else {
+        crate::shape::glass_drew(t, false, "off", Default::default());
+    }
+    if in_run && drew.is_some() {
+        // Liquid glass waits for the screen itself when it presents a frame.
+        // Otherwise wait for the screen's next refresh, so this runs once per
+        // refresh instead of spinning.
+        if !drew.is_some_and(|d| d.presented) {
+            wait_for_refresh();
+        }
+        poke();
+    }
+}
+
+/// Sleep until the screen's next refresh.
+///
+/// Neither `DwmFlush` nor a display output's `WaitForVBlank` blocks on this
+/// PC (both were measured returning in under 0.2 ms, so a loop built on them
+/// spun thousands of times a second). So the wait is worked out instead:
+/// Windows' compositor reports when its last refresh happened and how long a
+/// refresh lasts, and this sleeps to the next one. If that is unavailable it
+/// sleeps one refresh. Either way it always sleeps: the loop cannot spin.
+unsafe fn wait_for_refresh() {
+    use windows::Win32::Graphics::Dwm::{DwmGetCompositionTimingInfo, DWM_TIMING_INFO};
+    use windows_sys::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
+    let period_ms = refresh_ms();
+    let mut wait_ms = period_ms;
+    let mut info = DWM_TIMING_INFO { cbSize: std::mem::size_of::<DWM_TIMING_INFO>() as u32, ..Default::default() };
+    if DwmGetCompositionTimingInfo(windows::Win32::Foundation::HWND::default(), &mut info).is_ok() && info.qpcRefreshPeriod > 0 {
+        let (mut now, mut freq) = (0i64, 0i64);
+        QueryPerformanceCounter(&mut now);
+        QueryPerformanceFrequency(&mut freq);
+        if freq > 0 {
+            let period = info.qpcRefreshPeriod as i64;
+            let since = (now - info.qpcVBlank as i64).rem_euclid(period);
+            wait_ms = (period - since) as f64 * 1000.0 / freq as f64;
+            // Too close to call: take the refresh after.
+            if wait_ms < 1.0 {
+                wait_ms += period_ms;
+            }
+        }
+    }
+    std::thread::sleep(Duration::from_secs_f64(wait_ms.clamp(1.0, 40.0) / 1000.0));
+}
+
+/// What `sync` put on screen.
+#[derive(Clone, Copy)]
+struct Drew {
+    liquid: bool,
+    /// The liquid renderer presented a frame (which paces to the screen).
+    presented: bool,
+    /// The shape drawn, CSS px in the island window.
+    rect: crate::shape::Rect,
+}
+
+/// One screen refresh in ms, from Windows' compositor (cached with the other system values).
+fn refresh_ms() -> f64 {
+    static CACHE: Mutex<Option<(Instant, f64)>> = Mutex::new(None);
+    let mut cache = CACHE.lock().unwrap();
+    if let Some((at, ms)) = *cache {
+        if at.elapsed() < SYSTEM_TTL {
+            return ms;
+        }
+    }
+    let mut info = windows::Win32::Graphics::Dwm::DWM_TIMING_INFO {
+        cbSize: std::mem::size_of::<windows::Win32::Graphics::Dwm::DWM_TIMING_INFO>() as u32,
+        ..Default::default()
+    };
+    let ms = unsafe { windows::Win32::Graphics::Dwm::DwmGetCompositionTimingInfo(windows::Win32::Foundation::HWND::default(), &mut info) }
+        .ok()
+        .filter(|_| info.rateRefresh.uiNumerator > 0)
+        .map(|_| 1000.0 * info.rateRefresh.uiDenominator as f64 / info.rateRefresh.uiNumerator as f64)
+        .filter(|ms| (2.0..=40.0).contains(ms))
+        .unwrap_or(1000.0 / 60.0);
+    *cache = Some((Instant::now(), ms));
+    ms
+}
+
+/// How far ahead of "now" the glass aims, in ms. 0 by default: the page and
+/// the glass are assumed to reach the screen about equally late. [Unverified]
+/// Set ATOLL_GLASS_LEAD_MS to try other values on a given PC.
+fn lead_ms() -> f64 {
+    static LEAD: OnceLock<f64> = OnceLock::new();
+    *LEAD.get_or_init(|| std::env::var("ATOLL_GLASS_LEAD_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(0.0))
 }
 
 /// The blur and its tint: two visuals sharing one rounded clip.
@@ -354,13 +453,13 @@ impl LiquidVisual {
     }
 
     /// Size it to the window, clip it to `s`, and hand the renderer the look.
-    fn place(&self, window: (i32, i32, i32, i32), s: Shape, look: Look) -> windows::core::Result<()> {
+    /// Returns whether the renderer presented a new frame.
+    fn place(&self, window: (i32, i32, i32, i32), s: Shape, look: Look) -> windows::core::Result<bool> {
         self.visual.SetSize(Vector2 { X: window.2 as f32, Y: window.3 as f32 })?;
         self.geometry.SetOffset(Vector2 { X: s.x as f32, Y: s.y as f32 })?;
         self.geometry.SetSize(Vector2 { X: s.w as f32, Y: s.h as f32 })?;
         self.geometry.SetCornerRadius(Vector2 { X: s.r as f32, Y: s.r as f32 })?;
-        self.renderer.set(look, window);
-        Ok(())
+        Ok(self.renderer.set(look, window))
     }
 }
 
@@ -421,19 +520,29 @@ fn system_look() -> (bool, bool) {
 }
 
 /// Show, move, reshape or hide the blur to match the island.
-unsafe fn sync(hwnd: HWND) {
-    let Some(app) = APP.get() else { return };
+unsafe fn sync(hwnd: HWND) -> Option<Drew> {
+    let app = APP.get()?;
     let island = island_hwnd(app);
     let state = app.state::<AppState>();
-    let (blur, opaque, theme, liquid, distortion, shine) = {
+    let (blur, opaque, theme, liquid, distortion, shine, zoom) = {
         let s = state.settings.lock().unwrap();
         let a = &s.appearance;
-        (a.blur, a.opacity >= 100, a.theme.clone(), LIQUID_ENABLED && a.glass == "liquid", a.distortion, a.liquid)
+        (a.blur, a.opacity >= 100, a.theme.clone(), LIQUID_ENABLED && a.glass == "liquid", a.distortion, a.liquid, a.scale as f64 / 100.0)
     };
     // Liquid glass shows even at blur 0 (clear glass); Windows' blur needs > 0.
     let blur_on = liquid || blur > 0;
     let (transparency, system_light) = system_look();
-    let shape = *SHAPE.lock().unwrap();
+    // The shape for this very frame, worked out from the island's current
+    // move (shape.rs). Before the page has sent one, the last reported shape.
+    let live = if island != 0 {
+        crate::shape::glass_rect(crate::shape::now_ms() + lead_ms(), refresh_ms() / 2.0)
+    } else {
+        None
+    };
+    let shape = match live {
+        Some(r) => Some(to_physical(r.x, r.y, r.w, r.h, r.r, dpi_of(island) as f64 * zoom)),
+        None => *SHAPE.lock().unwrap(),
+    };
     let visible = island != 0 && IsWindowVisible(island as HWND) != 0;
     let mut shown = SHOWN.lock().unwrap();
     let wanted = shape.filter(|s| blur_on && !opaque && transparency && visible && s.w > 0 && s.h > 0);
@@ -445,12 +554,12 @@ unsafe fn sync(hwnd: HWND) {
                 exclude_from_capture(island, hwnd, false);
             }
         }
-        return;
+        return None;
     };
 
     let mut r: RECT = std::mem::zeroed();
     if GetWindowRect(island as HWND, &mut r) == 0 {
-        return;
+        return None;
     }
     let light = theme == "light" || (theme != "dark" && system_light);
     let next = Shown {
@@ -464,12 +573,13 @@ unsafe fn sync(hwnd: HWND) {
         let switched = GLASS.with(|g| g.borrow_mut().as_mut().map(|glass| glass.mode(liquid)));
         if !matches!(switched, Some(Ok(()))) {
             eprintln!("[atoll] liquid glass unavailable: {switched:?}");
-            return;
+            return None;
         }
         if !liquid {
             exclude_from_capture(island, hwnd, false);
         }
     }
+    let mut presented = false;
     if liquid {
         let look = Look {
             shape: [s.x as f32, s.y as f32, s.w as f32, s.h as f32, s.r as f32],
@@ -493,24 +603,30 @@ unsafe fn sync(hwnd: HWND) {
                 l.place(next.window, s, look)
             })
         });
-        if let Some(Err(e)) = placed {
-            eprintln!("[atoll] liquid glass: {e}");
+        match placed {
+            Some(Ok(drawn)) => presented = drawn,
+            Some(Err(e)) => eprintln!("[atoll] liquid glass: {e}"),
+            None => {}
         }
     } else if before.map(|b| (b.shape, b.tint, b.liquid)) != Some((next.shape, next.tint, false)) {
         let placed = GLASS.with(|g| g.borrow().as_ref().map(|glass| glass.place(next.shape, next.tint)));
         if !matches!(placed, Some(Ok(()))) {
-            return;
+            return None;
         }
     }
     let flags = SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_SHOWWINDOW;
     if before.map(|b| b.window) == Some(next.window) {
         // Keep it directly under the island in the z-order (inserted after it).
-        SetWindowPos(hwnd, island as HWND, 0, 0, 0, 0, flags | SWP_NOMOVE | SWP_NOSIZE);
+        // Not on every frame of a move: nothing reorders windows that fast.
+        if live.is_none() || before.map(|b| b.shape) == Some(next.shape) {
+            SetWindowPos(hwnd, island as HWND, 0, 0, 0, 0, flags | SWP_NOMOVE | SWP_NOSIZE);
+        }
     } else {
         let (x, y, w, h) = next.window;
         SetWindowPos(hwnd, island as HWND, x, y, w, h, flags);
     }
     *shown = Some(next);
+    Some(Drew { liquid, presented, rect: live.unwrap_or_default() })
 }
 
 #[cfg(test)]
@@ -614,6 +730,126 @@ mod tests {
                 capture(window.0, window.1, window.2, window.3, &out.to_string_lossy());
                 println!("capture: {}", out.display());
             }
+            ShowWindow(hwnd, SW_HIDE);
+        }
+    }
+
+    /// Runs the glass through a series of island moves at the top left of the
+    /// main screen, driven exactly as in the app (one frame per screen refresh,
+    /// each drawing the shape shape.rs gives for that moment), and prints the
+    /// frame times for Frosted and for Liquid. Run by hand:
+    /// `cargo test --lib probe_glass_follows_shape -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn probe_glass_follows_shape() {
+        use crate::shape::{self, Motion, Segment, Shape as S};
+        use windows::Win32::UI::HiDpi::{SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{PeekMessageW, HWND_TOPMOST, PM_REMOVE};
+        unsafe fn pump() {
+            let mut msg: MSG = std::mem::zeroed();
+            while PeekMessageW(&mut msg, null_mut(), 0, 0, PM_REMOVE) != 0 {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        // The same retarget rule as spring.ts: keep position, cap speed towards the target.
+        fn retarget(seg: &Segment, to: S, omega: f64, t: f64) -> Segment {
+            let (pos, mut vel) = shape::evaluate(seg, t);
+            for (gap, v) in [(to.w - pos.w, &mut vel.w), (to.h - pos.h, &mut vel.h), (to.r - pos.r, &mut vel.r)] {
+                let limit = omega * gap.abs();
+                if gap >= 0.0 && *v > limit { *v = limit } else if gap < 0.0 && *v < -limit { *v = -limit }
+            }
+            Segment { t0: t, from: pos, velocity: vel, to, omega }
+        }
+        unsafe {
+            let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            let hwnd = create_window().expect("window");
+            let mut glass = Glass::new(hwnd).expect("compositor");
+            let window = (40, 40, 832, 528);
+            SetWindowPos(hwnd, HWND_TOPMOST, window.0, window.1, window.2, window.3, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            let idle = S { w: 72.0, h: 40.0, r: 20.0 };
+            let status = S { w: 336.0, h: 40.0, r: 20.0 };
+            let peek = S { w: 440.0, h: 120.0, r: 28.0 };
+            let panel = S { w: 720.0, h: 440.0, r: 32.0 };
+            // (target, stiffness 1/ms, how long before the next target: some are cut short on purpose)
+            let moves = [
+                (status, 0.030, 450.0), (idle, 0.018, 600.0), (panel, 0.028, 500.0), (idle, 0.034, 450.0),
+                (peek, 0.028, 450.0), (idle, 0.034, 400.0), (status, 0.030, 60.0), (panel, 0.028, 90.0),
+                (idle, 0.034, 120.0), (status, 0.030, 500.0), (idle, 0.018, 700.0),
+            ];
+            let half = refresh_ms() / 2.0;
+            println!("refresh: {:.2} ms", refresh_ms());
+            for liquid in [false, true] {
+                glass.mode(liquid).expect("mode");
+                if liquid {
+                    let l = glass.liquid.as_ref().unwrap();
+                    let (monitor, origin) = monitor_of(hwnd);
+                    l.place(window, Shape { x: 380, y: 8, w: 72, h: 40, r: 20 }, Look::default()).expect("place");
+                    l.renderer.capture(monitor, origin).expect("screen capture");
+                    let end = Instant::now() + Duration::from_secs(3);
+                    while !l.renderer.has_frame() && Instant::now() < end {
+                        pump();
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    assert!(l.renderer.has_frame(), "no captured frame arrived");
+                    // Keep one frame and stop capturing: the probe's glass is not hidden from capture.
+                    l.renderer.freeze();
+                }
+                let mut seg = Segment { t0: shape::now_ms(), from: idle, velocity: S::default(), to: idle, omega: 0.02 };
+                let mut deltas: Vec<f64> = Vec::new();
+                let mut bleed: f64 = 0.0;
+                for (to, omega, hold) in moves {
+                    let start = shape::now_ms();
+                    seg = retarget(&seg, to, omega, start);
+                    shape::set_for_test(Some(Motion { segment: seg, cx: 416.0, top: 8.0, hover_min: 128.0 }));
+                    let mut last: Option<f64> = None;
+                    loop {
+                        let t = shape::now_ms();
+                        if t - start > hold || !shape::moving(t) {
+                            break;
+                        }
+                        let r = shape::glass_rect(t, half).unwrap();
+                        let exact = shape::evaluate(&seg, t).0;
+                        bleed = bleed.max(r.w - exact.w).max(r.h - exact.h);
+                        let s = to_physical(r.x, r.y, r.w, r.h, r.r, 1.0);
+                        let presented = if liquid {
+                            let look = Look {
+                                shape: [s.x as f32, s.y as f32, s.w as f32, s.h as f32, s.r as f32],
+                                blur: 24.0,
+                                distortion: 0.6,
+                                liquid: 0.6,
+                                tint: DARK_HULL,
+                                tint_alpha: LIQUID_TINT,
+                            };
+                            glass.liquid.as_ref().unwrap().place(window, s, look).expect("place")
+                        } else {
+                            glass.place(s, DARK_HULL).expect("place");
+                            false
+                        };
+                        if !presented {
+                            wait_for_refresh();
+                        }
+                        pump();
+                        let done = shape::now_ms();
+                        if let Some(l) = last {
+                            deltas.push(done - l);
+                        }
+                        last = Some(done);
+                    }
+                    // Wait out the rest of the hold at rest (no frames drawn: nothing loops).
+                    while shape::now_ms() - start < hold {
+                        pump();
+                        std::thread::sleep(Duration::from_millis(4));
+                    }
+                }
+                let st = shape::frame_stats(&deltas);
+                println!(
+                    "{}: {} frames, budget {} ms, p50 {} p95 {} max {} ms, dropped {}, glass past the shape's edge by at most {:.3} px",
+                    if liquid { "liquid" } else { "frosted" },
+                    st.count, st.budget_ms, st.p50, st.p95, st.max, st.dropped, bleed
+                );
+            }
+            shape::set_for_test(None);
             ShowWindow(hwnd, SW_HIDE);
         }
     }

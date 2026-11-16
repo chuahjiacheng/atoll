@@ -1,0 +1,118 @@
+<!--
+  Dev overlay (debug builds): the island's state, target width, spring and
+  frame times, in a small readout under the island. It redraws only on frames
+  the island was drawing anyway and on state changes: it has no timer or loop
+  of its own, so it shows "loop off" truthfully while the island rests.
+  Toggle: Ctrl + Shift + click the island.
+-->
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { metrics, type IslandMetrics } from "./metrics";
+  import { measurer } from "./measure";
+  import { invoke } from "@tauri-apps/api/core";
+  import { clockOffsetMs, roundTripMs } from "./native";
+  import type { Decision } from "./arbiter";
+
+  /** The arbiter's last answer: what shows, what waits and why. */
+  let { decision = null }: { decision?: Decision | null } = $props();
+
+  interface NativeMetrics {
+    glass: { mode: string; loopRunning: boolean; frames: { budgetMs: number; count: number; dropped: number; p50: number; p95: number; max: number } };
+  }
+  let glass = $state<NativeMetrics | null>(null);
+
+  let m = $state<IslandMetrics>(metrics.snapshot());
+  let cache = $state({ size: 0, hits: 0, misses: 0 });
+
+  onMount(() => {
+    const read = () => {
+      m = metrics.snapshot();
+      cache = { size: measurer.cacheSize, hits: measurer.hits, misses: measurer.misses };
+    };
+    // The native glass keeps its own frame times; ask for them once per rest.
+    const askNative = () =>
+      invoke<NativeMetrics | null>("island_metrics")
+        .then((g) => (glass = g ?? null))
+        .catch(() => {});
+    const stops = [metrics.onEveryFrame(read), metrics.subscribe(read), metrics.subscribe((s) => s.width.settled && askNative())];
+    read();
+    return () => stops.forEach((stop) => stop());
+  });
+
+  const n = (v: number, digits = 0) => v.toFixed(digits);
+  const over = $derived(m.frames.p95 > m.frames.budgetMs * 1.2);
+</script>
+
+<dl class="overlay tabular" aria-hidden="true">
+  <div><dt>State</dt><dd>{m.state.id}{m.state.previous ? ` (was ${m.state.previous})` : ""}</dd></div>
+  <div><dt>Why</dt><dd>{m.state.reason}</dd></div>
+  {#if decision}
+    {@const last = decision.last}
+    <div>
+      <dt>Arbiter</dt>
+      <dd class:live={decision.recheckIn !== null}>
+        {decision.state}{last ? `, ${last.cause} from ${last.from}` : ""}{decision.recheckIn !== null ? `; asks again in ${n(decision.recheckIn)} ms` : ""}
+      </dd>
+    </div>
+    <div>
+      <dt>Queue</dt>
+      <dd>
+        {#each decision.queue as q (q.key)}
+          <span class="queued">{q.key}{q.count > 1 ? ` ×${q.count}` : ""} · {q.status} · {q.reason} · {n(q.waitedMs / 1000, 1)} s</span>
+        {:else}
+          empty
+        {/each}
+      </dd>
+    </div>
+  {/if}
+  <div><dt>Width</dt><dd>{n(m.width.current, 1)} → {n(m.width.target)} px, limits {n(m.width.min)}–{n(m.width.max)}</dd></div>
+  <div>
+    <dt>Spring</dt>
+    <dd class:live={m.loopRunning}>
+      {m.loopRunning ? "moving" : "at rest, loop off"}, {n(m.width.velocity)} px/s, {m.width.retargets} retargets
+    </dd>
+  </div>
+  <div>
+    <dt>Frames</dt>
+    <dd class:bad={over || m.frames.dropped > 0}>
+      {n(m.frames.p50, 1)} / {n(m.frames.p95, 1)} / {n(m.frames.max, 1)} ms (budget {n(m.frames.budgetMs, 1)}), {m.frames.dropped} dropped of {m.frames.count}
+    </dd>
+  </div>
+  <div><dt>Jump</dt><dd>{n(m.frames.longestJumpPx, 1)} px largest step</dd></div>
+  <div><dt>Text</dt><dd>{cache.size} cached, {cache.hits} hits, {cache.misses} measured</dd></div>
+  {#if glass}
+    {@const f = glass.glass.frames}
+    <div>
+      <dt>Glass</dt>
+      <dd class:bad={f.dropped > 0}>
+        {glass.glass.mode}, {n(f.p50, 1)} / {n(f.p95, 1)} / {n(f.max, 1)} ms, {f.dropped} dropped of {f.count}; clock ±{n(roundTripMs / 2, 1)} ms (offset {n(clockOffsetMs(), 1)})
+      </dd>
+    </div>
+  {/if}
+</dl>
+
+<style>
+  .overlay {
+    margin: var(--sp-8) 0 0;
+    padding: var(--sp-8) var(--sp-12);
+    display: grid;
+    gap: var(--sp-2);
+    border-radius: var(--r-control);
+    background: rgba(var(--c-hull-rgb), var(--hover-min-alpha));
+    color: var(--c-ink);
+    font-size: var(--fs-label);
+    line-height: var(--lh-tight);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .overlay div {
+    display: grid;
+    grid-template-columns: var(--sp-48) auto;
+    gap: var(--sp-8);
+  }
+  dt { color: var(--c-muted); }
+  dd { margin: 0; }
+  .queued { display: block; }
+  .live { color: var(--c-busy); }
+  .bad { color: var(--c-error); }
+</style>

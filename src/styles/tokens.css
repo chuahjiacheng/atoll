@@ -57,6 +57,18 @@
   --size-peek-w: 440px;
   --size-panel-w: 720px;
   --size-panel-h: 440px;
+  /* adaptive width (docs/contracts/width-contract.md): the pill is as wide as
+     its content, between these limits; the Collapsed width setting is the ceiling */
+  --size-idle-min: 64px;
+  --size-idle-max: 96px;
+  --size-pill-min: 160px;
+  --size-timer-min: 120px;
+  /* within one state the pill only shrinks once its content is this much narrower */
+  --width-deadband: 12px;
+  /* …and only after its content has stayed narrower this long */
+  --dur-width-hold: 2500ms;
+  /* hovering this close to the centre opens the island, however small the idle pill */
+  --size-hover-min: 128px;
   --size-top-gap: 8px;
   /* room kept above the island inside its window, for the glow */
   --size-top-room: 32px;
@@ -162,6 +174,14 @@
   --dur-reduced: 120ms;
   /* a lyric line rolling into the pill from below while the old one leaves above */
   --dur-lyric: 560ms;
+  /* lyrics in the pill: the island starts moving to a line's width this long
+     before the line starts, and (Smooth) sizes itself to the longest line due
+     within the look-ahead, in steps, so near-equal lines share one width */
+  --dur-lyric-lead: 180ms;
+  --dur-lyric-lookahead: 8000ms;
+  --lyrics-step: 32px;
+  /* while singing along, a narrower stretch must be this much narrower before the island shrinks */
+  --lyrics-deadband: 48px;
   /* how often time-based things (progress line, timers) refresh */
   --dur-tick: 500ms;
   /* the pointer can leave the island this long before it starts to close */
@@ -194,6 +214,19 @@
   --dur-toast-error: 4000ms;
   --dur-resync: 400ms;
   --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* island shape spring (critically damped): stiffness in 1/s. It settles to
+     within 1 % in about 6.6 / stiffness seconds: 28 ≈ 240 ms, 18 ≈ 370 ms. */
+  --spring-expand: 28;
+  --spring-collapse: 34;
+  --spring-grow: 30;
+  --spring-shrink: 18;
+  /* pill content swapping between states: the old one blurs and shrinks out,
+     the new one arrives after the shape has started to move */
+  --swap-blur: 4px;
+  --swap-scale: 0.96;
+  --dur-swap-out: 110ms;
+  --dur-swap-in: 220ms;
+  --dur-swap-delay: 70ms;
   --press-scale: 0.97;
   /* a control that can't be used right now */
   --alpha-disabled: 0.5;

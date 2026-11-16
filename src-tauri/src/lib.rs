@@ -48,6 +48,8 @@ mod reply;
 mod server;
 mod sessions;
 mod settings;
+mod arbiter; // adaptive-island: decides what the island shows (statechart)
+mod shape; // adaptive-island: the island's shape over time, shared by the glass and the hover test
 mod shortcuts;
 mod spotify;
 mod spotify_local;
@@ -871,7 +873,12 @@ fn start_click_through(app: AppHandle) {
                 continue;
             }
             let cursor = tauri::PhysicalPosition::new(p.x as f64, p.y as f64);
-            let r = *app.state::<AppState>().hit_rect.lock().unwrap();
+            // adaptive-island: the island's rectangle at this moment, from its
+            // current move (shape.rs); the last reported one until the page sends a move.
+            let r = match shape::hit_rect(shape::now_ms(), 16.0) {
+                Some(r) => HitRect { x: r.x, y: r.y, w: r.w, h: r.h },
+                None => *app.state::<AppState>().hit_rect.lock().unwrap(),
+            };
             let (left, top) = (pos.x as f64 + r.x * scale, pos.y as f64 + r.y * scale);
             if island_hwnd == 0 {
                 island_hwnd = win.hwnd().map(|h| h.0 as isize).unwrap_or(0);
@@ -998,6 +1005,12 @@ pub fn run() {
             decide_permission,
             set_hit_rect,
             backdrop::set_backdrop,
+            // adaptive-island: begin
+            shape::island_clock,
+            shape::set_island_motion,
+            shape::island_metrics,
+            arbiter::arbiter_post,
+            // adaptive-island: end
             get_settings,
             update_settings,
             reset_settings,
