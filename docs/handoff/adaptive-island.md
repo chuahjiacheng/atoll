@@ -1,7 +1,7 @@
 # Handoff: adaptive-island
 
 Branch `adaptive-island`, worktree `.claude/worktrees/adaptive-island`. Written 2026-11-16.
-All four steps and the fixed-size lyrics are approved (step 4 and the lyrics change on 2026-11-16, after a run in the live island). The branch is not merged into main.
+All four steps and the fixed-size lyrics are approved (step 4 and the lyrics change on 2026-11-16, after a run in the live island). The branch was merged into main on 2026-11-16 (merge commit `baa18fc`) and the merged build was approved after a run as the live island.
 
 ## What changed
 
