@@ -14,7 +14,10 @@ const LINES: LyricLine[] = [
   { t: 55_000, text: "tiny" },            // 6  width 180
 ];
 const WIDTHS = [200, 330, 220, 290, 110, 400, 180];
-const BASE = { lines: LINES, widths: WIDTHS, titleWidth: 250, lead: 180, lookahead: 8000, step: 16 };
+// base 0: no fixed size, so these rows show the planning on its own.
+const BASE = { lines: LINES, widths: WIDTHS, titleWidth: 250, base: 0, lead: 180, lookahead: 8000, step: 16 };
+const FIXED_SIZE = 260;
+const sized = (mode: LyricsMode, pos: number) => planLyrics({ ...BASE, base: FIXED_SIZE, mode, pos });
 const plan = (mode: LyricsMode, pos: number) => planLyrics({ ...BASE, mode, pos });
 const up16 = (n: number) => Math.ceil(n / 16) * 16;
 
@@ -37,8 +40,30 @@ test("the next wake-up is the width change first, then the line itself", () => {
   for (const [pos, want] of rows) assert.equal(wakeIn(LINES, pos, 180), want, `at ${pos}`);
 });
 
-test("fixed: always as wide as the pill may get", () => {
-  for (const pos of [0, 10_500, 30_000, 60_000]) assert.equal(plan("fixed", pos).width, Infinity);
+test("fixed: the fixed size, whatever the line", () => {
+  for (const pos of [0, 10_500, 30_000, 52_500, 60_000]) assert.equal(sized("fixed", pos).width, FIXED_SIZE);
+});
+
+test("the pill keeps its fixed size and only grows for a line that does not fit", () => {
+  // Fixed size 260. Lines: 200, 330 (long), 220, 290 (long), 110 (gap), 400 (long), 180.
+  // [position, width, why]
+  const rows: [number, number, string][] = [
+    [0, 260, "title: fixed size"],
+    [10_500, 260, "a line that fits: fixed size"],
+    [12_800, 260, "200 ms before the long line: not yet"],
+    [12_900, 330, "100 ms before the long line: growing to it"],
+    [14_000, 330, "the long line"],
+    [15_900, 330, "100 ms before the next line, which fits: no early shrink"],
+    [16_000, 260, "the fitting line has started: back to the fixed size"],
+    [18_900, 290, "next long line, slightly early"],
+    [22_000, 260, "instrumental gap: fixed size, not smaller"],
+    [51_900, 400, "the widest line, slightly early"],
+    [55_000, 260, "last line fits: fixed size"],
+  ];
+  for (const [pos, want, why] of rows) assert.equal(sized("follow", pos).width, want, why);
+  // Never narrower than the fixed size, in any mode, anywhere in the song.
+  for (const mode of ["follow", "smooth", "fixed"] as LyricsMode[])
+    for (let pos = 0; pos <= 60_000; pos += 250) assert.ok(sized(mode, pos).width >= FIXED_SIZE, `${mode} at ${pos}`);
 });
 
 test("follow: each line's own width; growing starts early, shrinking waits for the line", () => {
@@ -102,4 +127,6 @@ test("seeking: the plan depends only on the position, so a jump lands on the rig
 test("no synced lines: the title width, and nothing to wait for", () => {
   const p = planLyrics({ ...BASE, lines: [], widths: [], mode: "smooth", pos: 30_000 });
   assert.deepEqual(p, { line: -1, width: up16(250), wakeIn: null });
+  const fixed = planLyrics({ ...BASE, base: FIXED_SIZE, lines: [], widths: [], mode: "follow", pos: 30_000 });
+  assert.equal(fixed.width, FIXED_SIZE);
 });

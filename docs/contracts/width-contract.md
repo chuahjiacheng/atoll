@@ -1,6 +1,6 @@
 # Width contract
 
-Owner: `adaptive-island` · Version 0.3 (draft, awaiting approval) · 2026-11-16
+Owner: `adaptive-island` · Version 0.4 (draft, awaiting approval) · 2026-11-16
 
 Every state the island can show declares how wide it wants to be. The island
 resolves one width from that declaration and animates to it. No state sets or
@@ -142,3 +142,4 @@ call any of the three.
 - 0.1 (2026-11-10): first draft.
 - 0.3 (2026-11-16): after building step 3 (lyrics). The lyrics row is now: min 160, preferred = planned from the lines to come (`src/lib/island/lyrics-width.ts`), max Collapsed width, overflow ellipsis (not marquee). Smooth takes the longest line starting within 8 s, rounded up to 32 px, starts growing 180 ms before a longer line, and shrinks only when at least 48 px narrower for 2.5 s. Follow takes each line (grows 180 ms early, shrinks when the shorter line starts). Fixed stays at Collapsed width.
 - 0.2 (2026-11-16): after building step 1. Added the `tabularStrong` text style and `Measurer.ready`. Pill content is anchored to the island's left edge (peeks and the panel stay centred). Within one state the pill grows at once but shrinks only after its content has stayed at least 12 px narrower for 2.5 s. The hover area is never narrower than 128 px. Text that is not plain Latin, and tabular numbers, are measured through a hidden element (canvas was 2.2 px off for Japanese and 1.85 px off for tabular digits).
+- 0.4 (2026-11-16): lyrics changed at the owner's request. While lyrics show, the pill has one fixed size (Settings → Appearance → Collapsed width). It grows only for a line too long to fit, starting 180 ms early, up to the open panel's width, and returns to the fixed size when the next line that fits starts. This is now the default mode (`follow`). `smooth` (hold the longest line of the next 8 s) and `fixed` (never grow) remain and are also never narrower than the fixed size. Every other state is content-sized as before; for them Collapsed width is still the maximum. Where earlier sections of this file describe the lyrics width differently, this entry wins.

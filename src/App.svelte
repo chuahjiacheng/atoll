@@ -617,9 +617,10 @@
   /** Bumped when text may measure differently (fonts arrived, display scale changed, a state asked). */
   let measured = $state(0);
 
-  // Lyrics: the width is planned from the lines to come (lyrics-width.ts).
-  // Settings → Spotify will choose the mode; until that setting exists it is Smooth.
-  const lyricsMode = $derived<LyricsMode>((settings?.spotify as { lyricsWidth?: LyricsMode } | undefined)?.lyricsWidth ?? "smooth");
+  // Lyrics: the pill keeps its fixed size (Collapsed width) and only grows for
+  // a line too long to fit, then goes back (lyrics-width.ts).
+  // Settings → Spotify will choose the mode; until that setting exists it is Follow.
+  const lyricsMode = $derived<LyricsMode>((settings?.spotify as { lyricsWidth?: LyricsMode } | undefined)?.lyricsWidth ?? "follow");
   const lyricWidths = $derived.by(() => {
     void measured;
     return lyricLines && measurer.ready ? lyricLines.map((l) => lyricLineWidth(measurer, l.text || "♪")) : null;
@@ -635,6 +636,7 @@
       lines: lyricLines ?? [],
       widths: lyricWidths ?? [],
       titleWidth,
+      base: pillCeiling,
       pos: positionMs(player, lyricNow),
       lead: seconds("--dur-lyric-lead") * 1000,
       lookahead: seconds("--dur-lyric-lookahead") * 1000,
@@ -647,7 +649,7 @@
       pillState === "focus" && timer
         ? focusContract({ time: timerTime, word: timerWord, strong: nudging, note: timerNote })
         : pillState === "lyrics"
-          ? lyricsContract(lyricPlan?.width ?? Infinity)
+          ? lyricsContract(lyricPlan?.width ?? pillCeiling)
           : pillState === "music" && track
             ? musicContract({ title: track.name, artist: track.artists })
             : pillState === "event" && soon
@@ -659,9 +661,11 @@
   });
   /** Settings → Appearance → Collapsed width is now the widest the pill gets. */
   const pillCeiling = $derived(settings?.appearance.collapsedWidth ?? 384);
+  /** A long lyric line may take the pill past that, up to the width of the open panel. */
+  const lyricsCeiling = $derived(Math.max(pillCeiling, settings?.appearance.expandedWidth ?? pillCeiling));
   const pillFit = $derived.by(() => {
     void measured;
-    return resolveWidth(pillContract, measurer, pillCeiling);
+    return resolveWidth(pillContract, measurer, pillState === "lyrics" ? lyricsCeiling : pillCeiling);
   });
   let pillW = $state(64);
   /** What the current width belongs to: the state, and for music the track too
@@ -719,7 +723,7 @@
   });
   $effect(() => {
     metrics.setState(islandState, islandReason);
-    metrics.setLimits(pillContract.min, Math.max(pillContract.min, Math.min(pillContract.max, pillCeiling)));
+    metrics.setLimits(pillContract.min, Math.max(pillContract.min, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
     metrics.lyrics = lyricPlan
       ? {
           mode: lyricsMode,

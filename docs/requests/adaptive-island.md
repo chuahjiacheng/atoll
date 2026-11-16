@@ -34,3 +34,7 @@ A `spotify.lyricsWidth` setting: `"follow" | "smooth" | "fixed"`, default `"smoo
 Measured 2026-11-16, same 20 s of the same song, release builds: the island uses 21 to 33 % of one CPU core while music plays (about 15 to 23 % in the web view's GPU process), on both `main`'s build and this branch. Paused, both use about 1 %. The page's main thread is idle (97 %), and the only things animating are the equaliser's four endless CSS animations, which make Windows recompose the island window at the screen's refresh rate (144 Hz here). [Inference] That is the cause; it was not isolated by switching the equaliser off.
 
 Not this branch's file, so not changed. Options for its owner: step the bars a few times a second (`steps()`), or pause the animation when nothing else on the island is moving.
+
+## 7. Lyrics width default changed (settings owner)
+
+Request 5 asked for `spotify.lyricsWidth` with default `smooth`. The default is now `follow`: the pill keeps the Collapsed width and grows only for a lyric line too long to fit. Labels that match the behaviour: Follow = "Grow for long lines", Smooth = "Grow and hold", Fixed = "Never grow".
