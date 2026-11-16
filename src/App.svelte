@@ -716,7 +716,7 @@
         : pillState,
   );
   const islandReason = $derived.by(() => {
-    if (mode === "panel") return hovering ? "pointer is over the island" : pinned ? "opened by click or hotkey" : dropping ? "something is being dragged in" : "a text box has focus";
+    if (mode === "panel") return hovering ? "pointer is over the island" : pinned ? "opened by click or hotkey" : dropping ? "something is being dragged in" : previewExpanded ? "shown open by Settings" : "a text box has focus";
     if (mode === "peek") return perm ? "a permission request or question is waiting" : asking ? "Claude asked a question" : digest ? "break started: what was held during focus" : "a task just finished";
     // The pill: the arbiter's own reason (until its answer for a state that just ended arrives, the next in its order).
     return decision && decision.pill === pillKey && !decision.surface ? decision.reason : pillKey === "idle" ? "nothing to show" : `next in the arbiter's order: ${pillKey}`;

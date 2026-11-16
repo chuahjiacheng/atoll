@@ -1,7 +1,7 @@
 # Handoff: adaptive-island
 
 Branch `adaptive-island`, worktree `.claude/worktrees/adaptive-island`. Written 2026-11-16.
-Steps 1 to 3 are approved. Step 4 (the arbiter) is built and tested but has not run in the live island yet.
+Steps 1 to 3 are approved. Step 4 (the arbiter) and the fixed-size lyrics were run in the live island on 2026-11-16 and await approval.
 
 ## What changed
 
@@ -38,10 +38,10 @@ cd src-tauri && cargo test
 
 ## Open issues
 
-- Step 4 has not been run in the live island. The decisions are covered by tests; the wiring in `App.svelte` is type-checked and built only.
+- Live check of step 4 covered music, a busy agent, the focus timer and the panel. Needs-you, errors, events, the dwell and the rate limits were not seen live; they are covered by the Rust tests only.
 - Contracts on `main` are still version 0.1; the current ones are on this branch.
 - Settings needed from the settings owner: `spotify.lyricsWidth` (Follow / Smooth / Fixed; always Follow until then). See `docs/requests/adaptive-island.md` for all six requests, including the equaliser's CPU cost while music plays.
-- The fixed-size lyrics behaviour has not run live. Each new long-line width makes the glass draw a new rim at the start of the move, which may cost a frame [Unverified].
+- Fixed-size lyrics, live, 75 s with a temporary 320 px fixed size: 7 grows, 5 returns, 0 dropped frames on the page (490) and the glass (795). Not tested at widths past 450 px or towards the 720 px upper limit.
 - Not built: marquee for text that overflows at the maximum width (it is cut with an ellipsis), the `island-rest` event, the `dev.metrics` setting.
 - Arbiter timing numbers (400 ms dwell, 1000 / 1000 / 3000 ms rate limits) are first guesses; they are constants at the top of `arbiter.rs`.
 - The count of coalesced repeats is reported but no peek shows it yet.

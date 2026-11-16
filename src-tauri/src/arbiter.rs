@@ -273,7 +273,8 @@ impl Arbiter {
             if !event_blocked {
                 push(Key::Event, false, "an event starts soon and nothing urgent is on");
             }
-            push(Key::Music, false, "music is given the pill (Settings → Spotify)");
+            let over_agent = has(Key::Busy) || has(Key::Done);
+            push(Key::Music, false, if over_agent { "music is given the pill (Settings → Spotify)" } else { "music playing, nothing more urgent" });
             push(Key::Busy, false, "agent status");
             if event_blocked {
                 push(Key::Event, false, "waits while the agent is working");
