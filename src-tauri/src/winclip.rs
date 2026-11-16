@@ -316,6 +316,31 @@ pub fn write(content: &Content) -> Result<(), String> {
     if ok { Ok(()) } else { Err("Could not put that on the clipboard.".into()) }
 }
 
+/// Put a secret on the clipboard, asking Windows' own clipboard history
+/// (Win+V) and cloud clipboard not to keep it.
+pub fn write_secret(text: &str) -> Result<(), String> {
+    let open = Open::new().ok_or("The clipboard is busy. Try again.")?;
+    let ok = unsafe {
+        EmptyClipboard();
+        let ok = put(CF_UNICODETEXT as u32, &utf16_bytes(text));
+        put(format("CanIncludeInClipboardHistory"), &0u32.to_le_bytes());
+        put(format("CanUploadToCloudClipboard"), &0u32.to_le_bytes());
+        ok
+    };
+    drop(open);
+    OWN_SEQ.store(unsafe { GetClipboardSequenceNumber() }, Ordering::Relaxed);
+    if ok { Ok(()) } else { Err("Could not put that on the clipboard.".into()) }
+}
+
+/// Empty the clipboard (a secret item expired while still on it).
+pub fn clear() -> Result<(), String> {
+    let open = Open::new().ok_or("The clipboard is busy.")?;
+    unsafe { EmptyClipboard() };
+    drop(open);
+    OWN_SEQ.store(unsafe { GetClipboardSequenceNumber() }, Ordering::Relaxed);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

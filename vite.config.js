@@ -20,6 +20,7 @@ export default defineConfig({
       input: {
         island: resolve(import.meta.dirname, "index.html"),
         dashboard: resolve(import.meta.dirname, "dashboard.html"),
+        palette: resolve(import.meta.dirname, "palette.html"), // search-clipboard
       },
     },
   },

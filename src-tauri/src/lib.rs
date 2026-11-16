@@ -58,6 +58,11 @@ mod tray;
 mod usage;
 mod winclip;
 mod windows;
+// ---- search-clipboard: begin ----
+mod clipintel;
+mod ocr;
+mod search;
+// ---- search-clipboard: end ----
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
@@ -145,6 +150,9 @@ pub(crate) fn commit_settings(app: &AppHandle, next: Settings) {
     }
     if prev.clipboard != next.clipboard {
         clipboard::settings_changed(app);
+    }
+    if prev.modules != next.modules {
+        search::settings_changed(); // search-clipboard
     }
     if prev.usage.from_sign_in != next.usage.from_sign_in || prev.modules.usage_ring != next.modules.usage_ring {
         usage::poke(app);
@@ -544,6 +552,40 @@ fn open_windows_dnd(app: AppHandle) -> Result<(), String> {
 }
 
 // ----- clipboard history -----
+
+// ---- search-clipboard: begin ----
+#[tauri::command]
+fn clipboard_transform(app: AppHandle, id: String, op: String, paste: bool) -> Result<(), String> {
+    clipboard::transform(&app, &id, &op, paste)
+}
+
+/// `source`: "clipboard" | "whiteboard" | "note" | "fileTray" | "calendar" | "agent".
+#[tauri::command]
+fn search_query(app: AppHandle, query: String, limit: Option<usize>, source: Option<String>) -> Vec<search::Result> {
+    let only = source.and_then(|s| serde_json::from_value::<search::index::Source>(serde_json::Value::String(s)).ok());
+    search::query(&app, &query, limit.unwrap_or(30), only)
+}
+
+#[tauri::command]
+fn search_act(app: AppHandle, key: String, action: String) -> Result<(), String> {
+    search::act(&app, &key, &action)
+}
+
+#[tauri::command]
+fn search_stats(app: AppHandle) -> search::Stats {
+    search::stats(&app)
+}
+
+#[tauri::command]
+fn palette_ready(app: AppHandle) {
+    search::palette::ready(&app);
+}
+
+#[tauri::command]
+fn palette_hide(app: AppHandle) {
+    search::palette::hide(&app);
+}
+// ---- search-clipboard: end ----
 
 #[tauri::command]
 fn clipboard_list(app: AppHandle) -> Vec<clipboard::Clip> {
@@ -990,6 +1032,7 @@ pub fn run() {
         .manage(calendar::CalendarState::default())
         .manage(lyrics::LyricsCache::default())
         .manage(clipboard::ClipboardState::default())
+        .manage(search::SearchState::default()) // search-clipboard
         .manage(board::BoardState::default())
         .manage(tray::TrayState::default())
         .plugin(tauri_plugin_opener::init())
@@ -1089,6 +1132,14 @@ pub fn run() {
             claude_status,
             open_folder,
             clipboard_thumb,
+            // ---- search-clipboard: begin ----
+            clipboard_transform,
+            search_query,
+            search_act,
+            search_stats,
+            palette_ready,
+            palette_hide,
+            // ---- search-clipboard: end ----
             pause_hotkeys,
             #[cfg(debug_assertions)]
             debug_renew_sign_in,
@@ -1128,6 +1179,7 @@ pub fn run() {
             clipboard::start(handle.clone());
             focus::start(handle.clone());
             calendar::start(handle.clone());
+            search::start(handle.clone()); // search-clipboard
             system::start_fullscreen_watch(handle.clone());
             {
                 // A usage limit hit in a desktop session before Atoll started.

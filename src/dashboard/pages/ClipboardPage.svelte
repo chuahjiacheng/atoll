@@ -9,6 +9,7 @@
   import Row from "../ui/Row.svelte";
   import SwitchRow from "../ui/SwitchRow.svelte";
   import SliderRow from "../ui/SliderRow.svelte";
+  import SelectRow from "../ui/SelectRow.svelte";
   import CountUp from "../ui/CountUp.svelte";
 
   let { s }: { s: Settings } = $props();
@@ -52,6 +53,35 @@
     checked={c.skipPrivate}
     onchange={(v) => change("clipboard.skipPrivate", v)}
   />
+  <!-- search-clipboard: begin -->
+  <SwitchRow
+    label="Hide secrets"
+    help="API keys, tokens, passwords and card numbers are shown masked and kept encrypted. Pasting still gives the real value."
+    checked={c.detectSecrets}
+    onchange={(v) => change("clipboard.detectSecrets", v)}
+  />
+  <SelectRow
+    label="Forget secrets after"
+    help="A hidden secret leaves the history, and the clipboard if it's still there. Pinning keeps it."
+    disabled={!c.detectSecrets}
+    value={String(c.secretExpiryMin)}
+    options={[
+      { v: "1", label: "1 minute" },
+      { v: "5", label: "5 minutes" },
+      { v: "15", label: "15 minutes" },
+      { v: "60", label: "1 hour" },
+      { v: "0", label: "Never" },
+    ]}
+    onchange={(v) => change("clipboard.secretExpiryMin", Number(v))}
+  />
+  <SwitchRow
+    label="Find text in images"
+    help="Copied images are read with Windows' own text recognition, on this PC. The text becomes searchable."
+    disabled={!c.images}
+    checked={c.ocr}
+    onchange={(v) => change("clipboard.ocr", v)}
+  />
+  <!-- search-clipboard: end -->
   <SwitchRow
     label="Encrypt history"
     help="Stored items and images are encrypted for your Windows account only."

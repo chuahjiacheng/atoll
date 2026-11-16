@@ -20,6 +20,7 @@
     { key: "module:denyPermission", label: "Deny a permission request", def: "Ctrl+Alt+KeyX" },
     { key: "module:dismissMessage", label: "Clear the island's message", def: "Ctrl+Alt+KeyD" },
     { key: "module:focus", label: "Start or pause the focus timer", def: "Ctrl+Alt+KeyF" },
+    { key: "module:palette", label: "Search everything", def: "Ctrl+Alt+KeyK" }, // search-clipboard
   ];
 
   const valueOf = (key: string) =>
