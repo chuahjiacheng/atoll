@@ -53,3 +53,5 @@ cd src-tauri && cargo test
 ## After the merge (2026-11-16)
 
 The owner found the content-sized pill too compact. Every pill state except idle now has the fixed size (Collapsed width); only lyrics grow past it for a long line. Idle keeps its small size. Change: `withFixedSize` in `src/lib/island/width.ts`, used by `pillFit` in `src/App.svelte`; tests in `src/lib/island/width.test.ts`. Not measured live (frames, glass). The lab page still resolves content widths.
+
+Later the same day: idle is half the fixed size (owner is trying this; may change).

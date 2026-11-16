@@ -659,16 +659,16 @@
                 : idleContract(showPip);
     return withLimits(c, measurer);
   });
-  /** Settings → Appearance → Collapsed width is the pill's fixed size in every state but idle. */
+  /** Settings → Appearance → Collapsed width is the pill's fixed size; idle is half of it. */
   const pillCeiling = $derived(settings?.appearance.collapsedWidth ?? 384);
   /** A long lyric line may take the pill past that, up to the width of the open panel. */
   const lyricsCeiling = $derived(Math.max(pillCeiling, settings?.appearance.expandedWidth ?? pillCeiling));
   const pillFit = $derived.by(() => {
     void measured;
     const fit = resolveWidth(pillContract, measurer, pillState === "lyrics" ? lyricsCeiling : pillCeiling);
-    // Idle keeps its small resting size; every other state has the fixed size
+    // Idle rests at half the fixed size; every other state has the fixed size
     // and only lyrics grow past it, for a line too long to fit.
-    return pillState === "idle" ? fit : withFixedSize(fit, pillCeiling);
+    return withFixedSize(fit, pillState === "idle" ? pillCeiling / 2 : pillCeiling);
   });
   let pillW = $state(64);
   /** What the current width belongs to: the state, and for music the track too
@@ -726,7 +726,7 @@
   });
   $effect(() => {
     metrics.setState(islandState, islandReason);
-    metrics.setLimits(pillState === "idle" ? pillContract.min : Math.max(pillContract.min, pillCeiling), Math.max(pillContract.min, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
+    metrics.setLimits(Math.max(pillContract.min, pillState === "idle" ? pillCeiling / 2 : pillCeiling), Math.max(pillContract.min, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
     metrics.lyrics = lyricPlan
       ? {
           mode: lyricsMode,
