@@ -1,7 +1,7 @@
 # Handoff: adaptive-island
 
 Branch `adaptive-island`, worktree `.claude/worktrees/adaptive-island`. Written 2026-11-16.
-Steps 1 to 3 are approved. Step 4 (the arbiter) and the fixed-size lyrics were run in the live island on 2026-11-16 and await approval.
+All four steps and the fixed-size lyrics are approved (step 4 and the lyrics change on 2026-11-16, after a run in the live island). The branch is not merged into main.
 
 ## What changed
 
