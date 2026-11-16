@@ -74,12 +74,25 @@ export function musicContract(c: MusicContent): WidthContract {
   };
 }
 
+/** Width the pill needs to show one sung line: album art · the line · equaliser. */
+export function lyricLineWidth(m: Measurer, text: string): number {
+  return sum(
+    m.token("--sp-12"),
+    m.token("--size-pip"),
+    m.token("--sp-8") + m.text(text, "smallStrong"),
+    m.token("--sp-8") + m.token("--size-icon-sm"),
+    m.token("--sp-16"),
+  );
+}
+
 /**
- * Lyrics in the pill. Until the look-ahead width (step 3) lands, the pill keeps
- * today's behaviour and stays at the Collapsed width while it sings along.
+ * Lyrics in the pill. The width is planned from the lines to come
+ * (lyrics-width.ts), not measured from the line on screen; Infinity means
+ * "as wide as the pill may get" (the Fixed setting). A line wider than that
+ * ends in an ellipsis.
  */
-export function lyricsContract(): WidthContract {
-  return { id: "lyrics", min: 0, preferred: Infinity, max: Infinity, overflow: "marquee", measure: () => Infinity };
+export function lyricsContract(width = Infinity): WidthContract {
+  return { id: "lyrics", min: 0, preferred: width, max: Infinity, overflow: "ellipsis", measure: () => width };
 }
 
 export interface FocusContent {

@@ -35,7 +35,8 @@
   import FinishedPeek from "./lib/island/FinishedPeek.svelte";
   import DigestPeek from "./lib/island/DigestPeek.svelte";
   import DevOverlay from "./lib/island/DevOverlay.svelte";
-  import { focusContract, idleContract, lyricsContract, musicContract, statusContract, withLimits } from "./lib/island/contracts";
+  import { focusContract, idleContract, lyricLineWidth, lyricsContract, musicContract, statusContract, withLimits } from "./lib/island/contracts";
+  import { lineAt, planLyrics, wakeIn, type LyricsMode } from "./lib/island/lyrics-width";
   import { measurer } from "./lib/island/measure";
   import { exposeMetrics, metrics } from "./lib/island/metrics";
   import { onInvalidate, resolveWidth, settleWidth, type IslandStateId } from "./lib/island/width";
@@ -148,12 +149,33 @@
   /** The synced line being sung, with its start time (so a repeated line still rolls in);
    *  null (so title · artist shows) before the first line or without synced lyrics. */
   const pillLyric = $derived.by<{ text: string; at: number } | null>(() => {
-    if (!lyricsInPill || !track || !player || lyrics?.trackId !== track.id || lyrics.instrumental) return null;
-    const lines = lyrics.synced;
-    const pos = positionMs(player, now);
-    let i = -1;
-    for (let k = 0; k < lines.length && lines[k].t <= pos; k++) i = k;
-    return i < 0 ? null : { text: lines[i].text || "♪", at: lines[i].t };
+    if (!lyricLines || !player) return null;
+    const i = lineAt(lyricLines, positionMs(player, lyricNow));
+    return i < 0 ? null : { text: lyricLines[i].text || "♪", at: lyricLines[i].t };
+  });
+  /** The synced lines of the track that is playing (null: none, not loaded yet, or instrumental). */
+  const lyricLines = $derived(
+    lyricsInPill && track && lyrics?.trackId === track.id && !lyrics.instrumental && lyrics.synced.length ? lyrics.synced : null,
+  );
+  /** When the sung line was last worked out. Set by a timer aimed at each line
+   *  (and at the moment its width change is due), not by the general tick, so
+   *  a line lands on time instead of up to a tick late. */
+  let lyricNow = $state(Date.now());
+  $effect(() => {
+    if (!lyricLines || !player || !playing || !musicInPill) return;
+    const lines = lyricLines;
+    const p = player;
+    const lead = seconds("--dur-lyric-lead") * 1000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onLine = () => {
+      const t = Date.now();
+      lyricNow = t;
+      const wait = wakeIn(lines, positionMs(p, t), lead);
+      // Nothing is scheduled after the last line, while paused, or with the pill showing something else.
+      if (wait !== null) timer = setTimeout(onLine, Math.max(16, wait + 4));
+    };
+    onLine();
+    return () => clearTimeout(timer);
   });
 
   // ---------- calendar ----------
@@ -505,8 +527,8 @@
   // The clock only ticks while something on screen depends on time.
   // Idle and collapsed, nothing runs.
   const needsClock = $derived(expanded || !!perm || !!asking || !!finished || musicInPill || pillStatus === "working" || pillStatus === "done" || !!timer);
-  // Lyrics in the pill tick faster so each line lands on the beat.
-  const tickMs = $derived(mode === "pill" && pillKind === "music" && lyricsInPill ? 250 : seconds("--dur-tick") * 1000);
+  // (Lyric lines have their own timer, aimed at each line: see lyricNow.)
+  const tickMs = $derived(seconds("--dur-tick") * 1000);
   $effect(() => {
     if (!needsClock) return;
     now = Date.now();
@@ -576,13 +598,38 @@
   );
   /** Bumped when text may measure differently (fonts arrived, display scale changed, a state asked). */
   let measured = $state(0);
+
+  // Lyrics: the width is planned from the lines to come (lyrics-width.ts).
+  // Settings → Spotify will choose the mode; until that setting exists it is Smooth.
+  const lyricsMode = $derived<LyricsMode>((settings?.spotify as { lyricsWidth?: LyricsMode } | undefined)?.lyricsWidth ?? "smooth");
+  const lyricWidths = $derived.by(() => {
+    void measured;
+    return lyricLines && measurer.ready ? lyricLines.map((l) => lyricLineWidth(measurer, l.text || "♪")) : null;
+  });
+  const titleWidth = $derived.by(() => {
+    void measured;
+    return track && measurer.ready ? musicContract({ title: track.name, artist: track.artists }).measure(measurer) : 0;
+  });
+  const lyricPlan = $derived.by(() => {
+    if (pillState !== "lyrics" || !player) return null;
+    return planLyrics({
+      mode: lyricsMode,
+      lines: lyricLines ?? [],
+      widths: lyricWidths ?? [],
+      titleWidth,
+      pos: positionMs(player, lyricNow),
+      lead: seconds("--dur-lyric-lead") * 1000,
+      lookahead: seconds("--dur-lyric-lookahead") * 1000,
+      step: px("--lyrics-step"),
+    });
+  });
   const pillContract = $derived.by(() => {
     void measured;
     const c =
       pillState === "focus" && timer
         ? focusContract({ time: timerTime, word: timerWord, strong: nudging, note: timerNote })
         : pillState === "lyrics"
-          ? lyricsContract()
+          ? lyricsContract(lyricPlan?.width ?? Infinity)
           : pillState === "music" && track
             ? musicContract({ title: track.name, artist: track.artists })
             : pillState === "event" && soon
@@ -599,25 +646,31 @@
     return resolveWidth(pillContract, measurer, pillCeiling);
   });
   let pillW = $state(64);
-  let widthFor: IslandStateId | null = null;
+  /** What the current width belongs to: the state, and for music the track too
+   *  (a new song takes its own width at once, like a new state). */
+  const widthKey = $derived(pillState === "lyrics" || pillState === "music" ? `${pillState}|${track?.id ?? ""}` : pillState);
+  let widthFor: string | null = null;
   $effect(() => {
     const fit = pillFit;
-    const id = pillContract.id;
+    const key = widthKey;
+    // Lyrics → Follow each line: every line takes its own width, both ways, at once.
+    const everyLine = pillState === "lyrics" && lyricsMode === "follow";
+    const band = () => px(pillState === "lyrics" ? "--lyrics-deadband" : "--width-deadband");
     untrack(() => {
       // A new state takes its own width at once. Within one state the pill
       // grows at once (or its text would be cut) but is slow to shrink: small
       // differences are ignored, and a real one must last a few seconds first.
       // Otherwise a busy agent's step names would make the pill breathe.
-      const next = id === widthFor ? settleWidth(pillW, fit.width, px("--width-deadband")) : fit.width;
-      if (id !== widthFor || next >= pillW) {
+      const next = key === widthFor && !everyLine ? settleWidth(pillW, fit.width, band()) : fit.width;
+      if (key !== widthFor || everyLine || next >= pillW) {
         clearTimeout(shrinkTimer);
         shrinkTimer = undefined;
         pillW = next;
-        widthFor = id;
+        widthFor = key;
       } else if (!shrinkTimer) {
         shrinkTimer = setTimeout(() => {
           shrinkTimer = undefined;
-          if (pillContract.id === widthFor) pillW = settleWidth(pillW, pillFit.width, px("--width-deadband"));
+          if (widthKey === widthFor) pillW = settleWidth(pillW, pillFit.width, band());
         }, seconds("--dur-width-hold") * 1000);
       }
     });
@@ -652,6 +705,14 @@
   $effect(() => {
     metrics.setState(islandState, islandReason);
     metrics.setLimits(pillContract.min, Math.max(pillContract.min, Math.min(pillContract.max, pillCeiling)));
+    metrics.lyrics = lyricPlan
+      ? {
+          mode: lyricsMode,
+          line: lyricPlan.line,
+          nextChangeIn: lyricPlan.wakeIn ?? -1,
+          lookaheadTarget: Number.isFinite(lyricPlan.width) ? lyricPlan.width : pillCeiling,
+        }
+      : null;
   });
 
   // Dev overlay (debug builds): Ctrl + Shift + click the island.

@@ -1,6 +1,6 @@
 # Width contract
 
-Owner: `adaptive-island` · Version 0.2 (draft, awaiting approval) · 2026-11-16
+Owner: `adaptive-island` · Version 0.3 (draft, awaiting approval) · 2026-11-16
 
 Every state the island can show declares how wide it wants to be. The island
 resolves one width from that declaration and animates to it. No state sets or
@@ -81,7 +81,7 @@ width   = roundUpToEven(clamp(wanted, contract.min, ceiling))
 | idle | 64 | content (about 72) | 96 | none |
 | busy, done, error, attention | 160 | content | Collapsed width | ellipsis |
 | music (title · artist) | 160 | content | Collapsed width | ellipsis |
-| lyrics | 160 | content, see lyrics rules | Collapsed width | marquee |
+| lyrics | 160 | planned from the lines to come | Collapsed width | ellipsis |
 | focus (timer) | 120 | content | Collapsed width | ellipsis |
 | event | 160 | content | Collapsed width | ellipsis |
 | peek:* | 440 | 440 | 440 | n/a, height = content |
@@ -140,4 +140,5 @@ call any of the three.
 ## Changelog
 
 - 0.1 (2026-11-10): first draft.
+- 0.3 (2026-11-16): after building step 3 (lyrics). The lyrics row is now: min 160, preferred = planned from the lines to come (`src/lib/island/lyrics-width.ts`), max Collapsed width, overflow ellipsis (not marquee). Smooth takes the longest line starting within 8 s, rounded up to 32 px, starts growing 180 ms before a longer line, and shrinks only when at least 48 px narrower for 2.5 s. Follow takes each line (grows 180 ms early, shrinks when the shorter line starts). Fixed stays at Collapsed width.
 - 0.2 (2026-11-16): after building step 1. Added the `tabularStrong` text style and `Measurer.ready`. Pill content is anchored to the island's left edge (peeks and the panel stay centred). Within one state the pill grows at once but shrinks only after its content has stayed at least 12 px narrower for 2.5 s. The hover area is never narrower than 128 px. Text that is not plain Latin, and tabular numbers, are measured through a hidden element (canvas was 2.2 px off for Japanese and 1.85 px off for tabular digits).
