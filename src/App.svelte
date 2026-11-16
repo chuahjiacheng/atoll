@@ -726,7 +726,8 @@
   });
   $effect(() => {
     metrics.setState(islandState, islandReason);
-    metrics.setLimits(Math.max(pillContract.min, pillState === "idle" ? pillCeiling / 2 : pillCeiling), Math.max(pillContract.min, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
+    const least = Math.max(pillContract.min, pillState === "idle" ? pillCeiling / 2 : pillCeiling);
+    metrics.setLimits(least, Math.max(least, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
     metrics.lyrics = lyricPlan
       ? {
           mode: lyricsMode,
