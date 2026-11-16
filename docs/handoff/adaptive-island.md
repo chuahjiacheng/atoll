@@ -49,3 +49,7 @@ cd src-tauri && cargo test
 - Accessibility leftovers: the pill button is rebuilt per state (keyboard focus drops on a state change); the focus ring may be clipped [Unverified]; the idle dot sits off-centre with Pip switched off.
 - Impeccable: only the detector ran for steps 2 to 4 (no findings); critique and polish ran for step 1 only.
 - On-screen alignment of glass and page cannot be measured from inside the app; it was checked by frame times and by eye only.
+
+## After the merge (2026-11-16)
+
+The owner found the content-sized pill too compact. Every pill state except idle now has the fixed size (Collapsed width); only lyrics grow past it for a long line. Idle keeps its small size. Change: `withFixedSize` in `src/lib/island/width.ts`, used by `pillFit` in `src/App.svelte`; tests in `src/lib/island/width.test.ts`. Not measured live (frames, glass). The lab page still resolves content widths.

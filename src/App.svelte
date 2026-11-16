@@ -40,7 +40,7 @@
   import { DEFAULT_ORDER, createArbiter, pickPill, type Claim, type Decision, type Policy } from "./lib/island/arbiter";
   import { measurer } from "./lib/island/measure";
   import { exposeMetrics, metrics } from "./lib/island/metrics";
-  import { onInvalidate, resolveWidth, settleWidth, type IslandStateId } from "./lib/island/width";
+  import { onInvalidate, resolveWidth, settleWidth, withFixedSize, type IslandStateId } from "./lib/island/width";
   import { px } from "./lib/theme";
   import type { TabDef } from "./lib/island/Tabs.svelte";
   import FocusTab from "./lib/views/FocusView.svelte";
@@ -659,13 +659,16 @@
                 : idleContract(showPip);
     return withLimits(c, measurer);
   });
-  /** Settings → Appearance → Collapsed width is now the widest the pill gets. */
+  /** Settings → Appearance → Collapsed width is the pill's fixed size in every state but idle. */
   const pillCeiling = $derived(settings?.appearance.collapsedWidth ?? 384);
   /** A long lyric line may take the pill past that, up to the width of the open panel. */
   const lyricsCeiling = $derived(Math.max(pillCeiling, settings?.appearance.expandedWidth ?? pillCeiling));
   const pillFit = $derived.by(() => {
     void measured;
-    return resolveWidth(pillContract, measurer, pillState === "lyrics" ? lyricsCeiling : pillCeiling);
+    const fit = resolveWidth(pillContract, measurer, pillState === "lyrics" ? lyricsCeiling : pillCeiling);
+    // Idle keeps its small resting size; every other state has the fixed size
+    // and only lyrics grow past it, for a line too long to fit.
+    return pillState === "idle" ? fit : withFixedSize(fit, pillCeiling);
   });
   let pillW = $state(64);
   /** What the current width belongs to: the state, and for music the track too
@@ -723,7 +726,7 @@
   });
   $effect(() => {
     metrics.setState(islandState, islandReason);
-    metrics.setLimits(pillContract.min, Math.max(pillContract.min, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
+    metrics.setLimits(pillState === "idle" ? pillContract.min : Math.max(pillContract.min, pillCeiling), Math.max(pillContract.min, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
     metrics.lyrics = lyricPlan
       ? {
           mode: lyricsMode,

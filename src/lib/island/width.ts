@@ -67,6 +67,15 @@ export function resolveWidth(c: WidthContract, m: Measurer, ceiling = Infinity):
 }
 
 /**
+ * The pill's fixed size: never narrower than `base` (Settings → Appearance →
+ * Collapsed width), wider only when the state's own ceiling let it grow.
+ */
+export function withFixedSize(r: Resolved, base: number): Resolved {
+  const floor = Math.floor(base / 2) * 2 || even(base);
+  return r.width >= floor ? r : { ...r, width: floor };
+}
+
+/**
  * Small differences are ignored so the island does not twitch: within one
  * state, it only shrinks once the content is at least `deadband` narrower.
  * Growing is never held back (the content would be cut off).
