@@ -28,3 +28,9 @@ The "Collapsed width" slider now sets the widest the pill can get. Its label or 
 ## 5. Coming in step 3 (not needed yet)
 
 A `spotify.lyricsWidth` setting: `"follow" | "smooth" | "fixed"`, default `"smooth"`, in `settings.rs`, `src/lib/settings.ts` and the Spotify settings page. Until it exists the island behaves as `"smooth"`.
+
+## 6. Equaliser cost while music plays (owner of src/lib/ui/Eq.svelte)
+
+Measured 2026-11-16, same 20 s of the same song, release builds: the island uses 21 to 33 % of one CPU core while music plays (about 15 to 23 % in the web view's GPU process), on both `main`'s build and this branch. Paused, both use about 1 %. The page's main thread is idle (97 %), and the only things animating are the equaliser's four endless CSS animations, which make Windows recompose the island window at the screen's refresh rate (144 Hz here). [Inference] That is the cause; it was not isolated by switching the equaliser off.
+
+Not this branch's file, so not changed. Options for its owner: step the bars a few times a second (`steps()`), or pause the animation when nothing else on the island is moving.
