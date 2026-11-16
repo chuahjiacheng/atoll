@@ -19,7 +19,7 @@
 - Transforms: formatted JSON, one-line JSON, link without tracking.
 - Settings → Clipboard: Hide secrets, Forget secrets after, Find text in images.
 
-### Part 2: universal search and command palette (Milestone B)
+### Part 2: universal search and command palette (Milestone B, approved 2026-11-16)
 - `src-tauri/src/search/`: in-memory index (`index.rs`), module sources
   (`sources.rs`), event-store stub (`agent.rs`), palette window (`palette.rs`).
 - Sources: clipboard, whiteboard cards, quick note (one result per line),
