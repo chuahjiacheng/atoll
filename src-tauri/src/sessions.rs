@@ -109,8 +109,24 @@ pub fn is_next_step_tool(tool: &str) -> bool {
     tool.ends_with("ccd_turn__wrap_up")
 }
 
+/// An app action button (commit, create PR...) as a reply Claude can act on, or
+/// None for ones only the app itself can do (archive, new session).
+fn app_action_reply(action: &str) -> Option<&'static str> {
+    Some(match action {
+        "commit" => "Commit the changes",
+        "create_pr" => "Create a pull request",
+        "merge" => "Merge the pull request",
+        "fix_ci" => "Fix the failing CI",
+        "address_comments" => "Address the review comments",
+        "resolve_conflicts" => "Resolve the merge conflicts",
+        "verify" => "Verify it works",
+        _ => return None,
+    })
+}
+
 /// The question and reply choices in a `wrap_up` call, if it asks one. App
-/// actions (commit, create PR...) only work inside the app, so they're left out.
+/// actions become a plain reply asking Claude to do the same thing; ones only
+/// the app can do are left out.
 pub fn ask_from_next_step(input: &Value, now: u64) -> Option<Ask> {
     let question = input.get("ask").and_then(Value::as_str).unwrap_or("").trim();
     if question.is_empty() {
@@ -121,8 +137,10 @@ pub fn ask_from_next_step(input: &Value, now: u64) -> Option<Ask> {
         .and_then(Value::as_array)
         .map(|list| {
             list.iter()
-                .filter(|a| a.get("action").and_then(Value::as_str).unwrap_or("").is_empty())
-                .filter_map(|a| a.get("label").and_then(Value::as_str))
+                .filter_map(|a| match a.get("action").and_then(Value::as_str).unwrap_or("") {
+                    "" => a.get("label").and_then(Value::as_str),
+                    action => app_action_reply(action),
+                })
                 .map(|l| shorten(l.trim(), 60))
                 .filter(|l| !l.is_empty())
                 .take(4)
@@ -587,13 +605,16 @@ mod tests {
         let mut wrap = base("PreToolUse");
         wrap["tool_name"] = json!("mcp__ccd_turn__wrap_up");
         wrap["tool_input"] = json!({"recap": "r", "ask": "What next?", "actions": [
-            {"label": "Run the polish pass"}, {"label": "Start Milestone 4"}, {"action": "commit"}]});
+            {"label": "Run the polish pass"}, {"label": "Start Milestone 4"}, {"action": "archive"}]});
         store.apply(&wrap);
         store.apply(&base("Stop"));
         let s = &store.snapshot()[0];
         assert_eq!(s.status, Status::Attention);
         assert_eq!(s.message.as_deref(), Some("What next?"));
         assert_eq!(s.ask.as_ref().unwrap().choices, vec!["Run the polish pass", "Start Milestone 4"]);
+        // An app action Claude can do from a reply becomes a choice, even when it's the only one.
+        let only = ask_from_next_step(&json!({"ask": "Commit these changes?", "actions": [{"action": "commit"}]}), 0);
+        assert_eq!(only.unwrap().choices, vec!["Commit the changes"]);
         assert!(store.feed().log.iter().all(|e| !e.target.contains("wrap")), "kept out of the log");
         assert!(store.answered("s1"));
         assert!(store.snapshot()[0].ask.is_none());
