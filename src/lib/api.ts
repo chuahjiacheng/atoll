@@ -64,7 +64,50 @@ export interface Permission {
   expiresAt: number;
   /** AskUserQuestion only: the questions to answer in the island. */
   questions?: Question[];
+  // ---- permission-intel: begin ----
+  /** What the request does and how risky it is (absent if the app predates it). */
+  intel?: PermissionIntel;
+  // ---- permission-intel: end ----
 }
+
+// ---- permission-intel: begin ----
+/** unknown = Atoll could not check it; treated like risky. */
+export type Risk = "safe" | "caution" | "unknown" | "risky";
+export interface Finding {
+  flag: string;
+  risk: Risk;
+  note: string;
+}
+export interface DiffLine {
+  kind: "context" | "removed" | "added" | "gap";
+  text: string;
+}
+export interface Diff {
+  path: string;
+  lang: string;
+  lines: DiffLine[];
+  added: number;
+  removed: number;
+  more: number;
+  cut: boolean;
+  newFile: boolean;
+}
+export interface PermissionIntel {
+  risk: Risk;
+  shell: "bash" | "powerShell" | "tool";
+  parsed: boolean;
+  summary: string;
+  /** Up to two further reasons the sentence does not already give. */
+  reasons?: Finding[];
+  /** Paths outside the project the request touches, as written. */
+  outside?: string[];
+  findings: Finding[];
+  autoAllowEligible: boolean;
+  ineligibleReason: string;
+  diff?: Diff;
+  elapsedUs: number;
+}
+// ---- permission-intel: end ----
 
 /** allow / deny, or pass = hand it back to Claude Code's own prompt. */
 export type Choice = "allow" | "deny" | "pass" | "answer";

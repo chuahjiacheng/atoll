@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src-tauri", "bridge"]
+members = ["src-tauri", "bridge", "intel"] # permission-intel: analysis crate
 
 [profile.release]
 opt-level = "s"

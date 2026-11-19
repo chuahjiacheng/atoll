@@ -352,6 +352,20 @@
   /* ---------- focus ---------- */
   --focus-width: 2px;
   --focus-offset: 2px;
+
+  /* ---- permission-intel: begin ---- */
+  /* Code in the permission peek (commands and edit diffs). Monospace only for code. */
+  --font-code: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  --fs-code: 12px;
+  --c-code-key: var(--c-accent-text);
+  --c-code-str: #d4b8ff;
+  --c-code-dim: var(--c-mist);
+  /* Added / removed lines: a faint wash of the done / error signals; the + / − sign carries the meaning too. */
+  --c-diff-add: color-mix(in srgb, var(--c-done) 13%, transparent);
+  --c-diff-del: color-mix(in srgb, var(--c-error) 14%, transparent);
+  --c-diff-sign-add: var(--c-done);
+  --c-diff-sign-del: var(--c-error);
+  /* ---- permission-intel: end ---- */
 }
 
 :root[data-theme="light"] {
@@ -424,6 +438,10 @@
   --shadow-preview: 0 8px 24px rgba(20, 20, 40, 0.18);
   --shadow-window: 0 0 0 1px var(--c-frame), 0 16px 48px rgba(20, 20, 40, 0.18);
   --shadow-toast: 0 0 0 1px var(--c-line), 0 8px 24px rgba(20, 20, 40, 0.18);
+
+  /* ---- permission-intel: begin ---- */
+  --c-code-str: #6b32b8;
+  /* ---- permission-intel: end ---- */
 }
 
 [data-low-tide="true"] {
