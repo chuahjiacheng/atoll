@@ -71,6 +71,10 @@
 
   // ---------- interaction ----------
   let hovering = $state(false);
+  /** The cursor came onto a finished-task or break peek: it stays that peek
+   *  (so its buttons can be pressed) and doesn't time out until the cursor
+   *  leaves, instead of turning into the panel. */
+  let onPeek = $state(false);
   let pinned = $state(false);
   /** Opened by a click or hotkey: closes again when you click elsewhere. */
   let pinnedByUser = false;
@@ -202,7 +206,8 @@
   );
   let digestTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    if (!digest) return;
+    // Held open while the cursor is on it; the countdown starts again when it leaves.
+    if (!digest || onPeek) return;
     const key = digestKey;
     clearTimeout(digestTimer);
     digestTimer = setTimeout(() => (digestHiddenFor = key), seconds("--dur-digest-hold") * 1000);
@@ -210,7 +215,7 @@
   });
 
   // ---------- what the island shows ----------
-  const expanded = $derived(hovering || pinned || previewExpanded || dropping || (inputFocused && windowFocused));
+  const expanded = $derived((hovering && !onPeek) || pinned || previewExpanded || dropping || (inputFocused && windowFocused));
   const perm = $derived(visiblePermissions[0] ?? null);
   const finished = $derived(finishedId ? (visibleSessions.find((s) => s.id === finishedId) ?? null) : null);
   // Claude ended its turn on a question with reply choices: it pops up (like a
@@ -333,10 +338,18 @@
     if (inside && hoverSnoozed) return;
     if (!inside) hoverSnoozed = false;
     if (inside) {
+      if (!hovering && (finished || digest)) {
+        onPeek = true;
+        clearTimeout(peekTimer);
+      }
       hovering = true;
-      finishedId = null; // the peek opens into the panel
     } else {
-      collapseTimer = setTimeout(() => (hovering = false), seconds("--dur-hover-grace") * 1000);
+      collapseTimer = setTimeout(() => {
+        hovering = false;
+        if (!onPeek) return;
+        onPeek = false;
+        if (finished) peekTimer = setTimeout(() => (finishedId = null), seconds("--dur-peek-hold") * 1000);
+      }, seconds("--dur-hover-grace") * 1000);
     }
   }
 
