@@ -141,11 +141,16 @@ pub struct PermissionView {
     /// What the request does, how risky it is and (for edits) the change.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intel: Option<crest_intel::Analysis>,
+    /// A rule that matches but did not decide (shown as a hint in the peek).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule: Option<crate::rules::Hint>,
 }
 
 struct Pending {
     view: PermissionView,
     tx: oneshot::Sender<Choice>,
+    /// The request as rules see it, for "Make a rule…".
+    facts: Option<crate::rules::Facts>,
 }
 
 #[derive(Default)]
@@ -212,10 +217,24 @@ impl PermissionQueue {
             expires_at: now + WAIT.as_millis() as u64,
             questions: if tool_is_question(s(event, "tool_name")) { input.get("questions").cloned() } else { None },
             intel,
+            rule: None,
         };
         let (tx, rx) = oneshot::channel();
-        self.items.push(Pending { view, tx });
+        self.items.push(Pending { view, tx, facts: None });
         (id, rx)
+    }
+
+    /// Attach what the rules made of a waiting request.
+    pub fn set_rules(&mut self, id: u64, facts: crate::rules::Facts, hint: Option<crate::rules::Hint>) {
+        if let Some(p) = self.items.iter_mut().find(|p| p.view.id == id) {
+            p.facts = Some(facts);
+            p.view.rule = hint;
+        }
+    }
+
+    /// The request as rules see it, and its project name, for a rule draft.
+    pub fn rule_facts(&self, id: u64) -> Option<(crate::rules::Facts, String)> {
+        self.items.iter().find(|p| p.view.id == id).and_then(|p| Some((p.facts.clone()?, p.view.project.clone())))
     }
 
     /// Answer one request. Returns false if it was already gone.
