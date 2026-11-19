@@ -1,6 +1,6 @@
-# Permission intelligence — Stage B: peek content
+# Permission intelligence — Stage B: peek content (approved 2026-11-19)
 
-Branch `permission-intel`. Builds on Stage A (`stage-a.md`).
+Branch `permission-intel`, merged into `main`. Builds on Stage A (`stage-a.md`).
 
 ## What changed for you
 
