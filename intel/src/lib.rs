@@ -13,14 +13,19 @@
 //!   takes the worse reading.
 
 mod bash;
+pub mod diff;
 mod classify;
 mod model;
 mod paths;
 mod powershell;
+mod summary;
+mod other;
 mod tools;
 
 use std::time::Instant;
 
+pub use diff::{Diff, DiffLine, LineKind};
+pub use other::analyze_tool;
 pub use model::{Analysis, CommandShape, Context, Finding, Flag, Risk, Shell};
 
 use classify::{Cwd, Cx};
@@ -45,6 +50,8 @@ pub fn analyze(tool: &str, command: &str, ctx: &Context) -> Analysis {
             finish(b, shell)
         }
     };
+    analysis.summary = summary::shell(&analysis);
+    analysis.reasons = summary::reasons(&analysis);
     analysis.elapsed_us = start.elapsed().as_micros() as u64;
     analysis
 }
@@ -68,7 +75,7 @@ fn run(shell: Shell, command: &str, ctx: &Context) -> Analysis {
     {
         let mut cx = Cx { ctx, b: &mut b, depth: 0, functions: vec![] };
         match shell {
-            Shell::Bash => nested_bash(&mut cx, command, &cwd),
+            Shell::Bash | Shell::Tool => nested_bash(&mut cx, command, &cwd),
             Shell::PowerShell => powershell::analyze_into(&mut cx, command, &cwd),
         }
     }
@@ -144,11 +151,12 @@ pub(crate) fn nested_bash(cx: &mut Cx, text: &str, cwd: &Cwd) {
     cx.depth -= 1;
 }
 
-fn finish(mut b: Builder, shell: Shell) -> Analysis {
+pub(crate) fn finish(mut b: Builder, shell: Shell) -> Analysis {
     // A secret read plus a way out, in one command, is how data leaves.
     if b.remote_network && b.secret_reads.iter().any(|s| !s.is_empty()) {
         let what = b.secret_reads.iter().find(|s| !s.is_empty()).cloned().unwrap_or_default();
-        b.find(Flag::Exfiltration, Risk::Risky, format!("reads {} and talks to the network in the same command", classify::short(&what)));
+        let dest = b.hosts.iter().find(|h| !classify::is_local_host(h)).cloned().unwrap_or_else(|| "the internet".into());
+        b.find(Flag::Exfiltration, Risk::Risky, format!("can send {what} to {dest}"));
     }
     let mut risk = b.findings.iter().map(|f| f.risk).max().unwrap_or(Risk::Safe);
     if !b.parsed && risk < Risk::Unknown {
@@ -173,6 +181,10 @@ fn finish(mut b: Builder, shell: Shell) -> Analysis {
         hosts: b.hosts,
         auto_allow_eligible: ineligible_reason.is_empty(),
         ineligible_reason,
+        summary: String::new(),
+        reasons: vec![],
+        outside: std::mem::take(&mut b.outside),
+        diff: None,
         elapsed_us: 0,
     }
 }
@@ -192,4 +204,14 @@ fn eligibility(risk: Risk, parsed: bool, shell: Shell, flags: &[Flag]) -> String
         return "it runs code written inside the command, which Atoll cannot fully check".into();
     }
     String::new()
+}
+
+/// The result to show when the analysis could not run in time or at all:
+/// `unknown`, never eligible for auto-allow.
+pub fn unchecked(reason: &str) -> Analysis {
+    let mut b = Builder::default();
+    b.find(Flag::Unparsed, Risk::Unknown, reason.to_string());
+    let mut a = finish(b, Shell::Tool);
+    a.summary = format!("{}.", summary::capitalise(reason.trim_end_matches('.')));
+    a
 }

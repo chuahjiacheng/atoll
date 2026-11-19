@@ -15,6 +15,9 @@ fn main() {
         args.remove(i);
         tool = "PowerShell";
     }
+    if let Some(i) = args.iter().position(|a| a == "--tool") {
+        args.drain(i..(i + 2).min(args.len()));
+    }
     if let Some(i) = args.iter().position(|a| a == "--cwd") {
         args.remove(i);
         if i < args.len() {
@@ -44,6 +47,15 @@ fn main() {
         dump(t.root_node(), &command, 0);
     }
     let ctx = Context::from_system(&cwd, &cwd);
+    // `--tool Edit '{"file_path": ..., "old_string": ..., "new_string": ...}'`: any tool, input as JSON.
+    if let Some(i) = std::env::args().position(|a| a == "--tool") {
+        let name = std::env::args().nth(i + 1).unwrap_or_default();
+        let input: serde_json::Value = serde_json::from_str(&command).expect("tool input must be JSON");
+        let existing = std::env::var("EXPLAIN_EXISTING").ok();
+        let a = crest_intel::analyze_tool(&name, &input, &ctx, existing.as_deref());
+        println!("{}", serde_json::to_string_pretty(&a).unwrap());
+        return;
+    }
     let a = analyze(tool, &command, &ctx);
     println!("{}", serde_json::to_string_pretty(&a).unwrap());
 }

@@ -335,7 +335,12 @@ impl Drop for PendingGuard {
 async fn wait_for_choice(app: &AppHandle, event: &Value, session_id: &str) -> Choice {
     let state = app.state::<AppState>();
     let project = state.sessions.lock().unwrap().project_of(session_id);
-    let (id, rx) = state.permissions.lock().unwrap().push(event, project);
+    // ---- permission-intel: begin ----
+    // The session's starting folder is the project (the event's cwd follows every `cd`).
+    let project_dir = state.sessions.lock().unwrap().snapshot().into_iter().find(|s| s.id == session_id).map(|s| s.cwd).unwrap_or_default();
+    let intel = permissions::analyze(event, project_dir).await;
+    let (id, rx) = state.permissions.lock().unwrap().push(event, project, Some(intel));
+    // ---- permission-intel: end ----
     let _guard = PendingGuard { app: app.clone(), id };
     crate::emit_permissions(app);
 

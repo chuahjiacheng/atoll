@@ -78,6 +78,8 @@ pub struct CommandShape {
 pub enum Shell {
     Bash,
     PowerShell,
+    /// Not a shell command: Edit, Write, Read, WebFetch, an MCP tool...
+    Tool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -99,6 +101,15 @@ pub struct Analysis {
     pub auto_allow_eligible: bool,
     /// Why it is not eligible, in plain words. Empty when eligible.
     pub ineligible_reason: String,
+    /// One plain-language sentence saying what the request does.
+    pub summary: String,
+    /// Up to two further reasons the sentence does not already give.
+    pub reasons: Vec<Finding>,
+    /// Paths outside the project the request touches (normalised).
+    pub outside: Vec<String>,
+    /// For file edits: the change, line by line.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff: Option<crate::diff::Diff>,
     pub elapsed_us: u64,
 }
 
@@ -156,6 +167,8 @@ pub(crate) struct Builder {
     /// Non-local network use that can carry data out.
     pub remote_network: bool,
     pub parsed: bool,
+    /// Paths outside the project that the request writes, deletes or reads secrets from.
+    pub outside: Vec<String>,
     /// Files fetched from the network by this command (normalised paths).
     pub downloaded: Vec<String>,
     /// Files this command writes, with their text when the command shows it.

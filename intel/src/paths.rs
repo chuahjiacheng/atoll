@@ -271,3 +271,61 @@ mod tests {
         assert_eq!(resolve("..", &cwds, &c)[0], "c:/users/me");
     }
 }
+
+/// What a file that runs or is trusted later is, in plain words: (what it is, what that means).
+pub fn runs_later(n: &str) -> (&'static str, &'static str) {
+    let b = base(n);
+    if matches!(b, ".bashrc" | ".bash_profile" | ".bash_login" | ".profile" | ".zshrc" | ".zprofile" | ".zshenv" | ".inputrc") {
+        ("your shell startup file", "which runs every time a terminal opens")
+    } else if b.ends_with("profile.ps1") {
+        ("your PowerShell profile", "which runs every time PowerShell starts")
+    } else if n.contains("/.git/hooks/") {
+        ("a git hook", "which runs by itself on git commands in this repository")
+    } else if b == ".gitconfig" || n.ends_with("/.git/config") || n.contains("/.config/git/") {
+        ("your git settings", "which apply to every git command")
+    } else if b == "authorized_keys" {
+        ("the list of keys allowed to log in to this PC", "")
+    } else if b == "known_hosts" {
+        ("the list of servers SSH trusts", "")
+    } else if b == "hosts" {
+        ("the hosts file", "which decides where web addresses lead")
+    } else if b == "crontab" || n.contains("/etc/cron") {
+        ("a list of scheduled tasks", "which run by themselves")
+    } else if n.contains("/.claude/") || b == ".claude.json" {
+        ("Claude Code's own settings or skills", "which steer every later session")
+    } else if n.contains("/start menu/programs/startup") {
+        ("the Windows startup folder", "which runs at every sign-in")
+    } else if n.contains("/etc/systemd/") || n.contains("/launchagents/") || n.contains("/launchdaemons/") || n.contains("/etc/profile") {
+        ("a service or start-up script", "which starts by itself")
+    } else {
+        ("a file", "which runs or is trusted automatically later")
+    }
+}
+
+/// What a secret-like file holds, in plain words.
+pub fn secret_kind(n: &str) -> String {
+    let b = base(n);
+    if matches!(b, "id_rsa" | "id_ed25519" | "id_ecdsa" | "id_dsa") {
+        "your SSH private key".into()
+    } else if n.contains("/.ssh") {
+        "your SSH keys or settings".into()
+    } else if b.starts_with(".env") {
+        format!("{b}, a file of passwords and keys")
+    } else if n.contains("/.aws") {
+        "your AWS credentials".into()
+    } else if n.contains("/.kube") {
+        "your Kubernetes credentials".into()
+    } else if b == ".npmrc" || b == ".pypirc" {
+        format!("your package-registry login ({b})")
+    } else if matches!(b, ".netrc" | ".git-credentials" | ".pgpass" | ".htpasswd") {
+        format!("saved passwords ({b})")
+    } else if b == ".credentials.json" || b == "credentials.json" || b == "credentials" {
+        format!("saved login tokens ({b})")
+    } else if [".pem", ".key", ".pfx", ".p12", ".keystore", ".jks"].iter().any(|e| b.ends_with(e)) {
+        format!("a private key file ({b})")
+    } else if b == "login data" || b == "cookies" {
+        "your browser's saved logins".into()
+    } else {
+        format!("{b}, which holds secrets")
+    }
+}

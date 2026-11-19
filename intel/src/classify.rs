@@ -223,6 +223,8 @@ pub(crate) fn write(cx: &mut Cx, cwd: &Cwd, w: &Word, how: Write) {
         return;
     };
     Builder::push_unique(&mut cx.b.writes, &w.text);
+    note_outside(cx, cwd, w, zone);
+    let first = resolved(cx, cwd, w).into_iter().next().unwrap_or_default();
     match zone {
         Zone::Sink => {}
         Zone::Temp | Zone::Project | Zone::ProjectRoot => {
@@ -232,8 +234,13 @@ pub(crate) fn write(cx: &mut Cx, cwd: &Cwd, w: &Word, how: Write) {
             }
         }
         Zone::GitInternals => cx.b.find(Flag::Overwrite, Risk::Risky, format!("changes git's own files ({name})")),
-        Zone::Secret => cx.b.find(Flag::SensitivePath, Risk::Risky, format!("writes to {name}, which holds secrets")),
-        Zone::Persistence => cx.b.find(Flag::HiddenExec, Risk::Risky, format!("changes {name}, which runs or is trusted automatically later")),
+        Zone::Secret => cx.b.find(Flag::SensitivePath, Risk::Risky, format!("writes to {}", paths::secret_kind(&first))),
+        Zone::Persistence => {
+            let (what, means) = paths::runs_later(&first);
+            let file = short(&w.text).rsplit('/').next().unwrap_or("").to_string();
+            let sep = if means.is_empty() { "" } else { ", " };
+            cx.b.find(Flag::HiddenExec, Risk::Risky, format!("changes {what} ({file}){sep}{means}"));
+        }
         Zone::System => cx.b.find(Flag::SystemChange, Risk::Risky, format!("writes to a system location ({name})")),
         Zone::Elsewhere => {
             if how == Write::Create {
@@ -287,6 +294,7 @@ pub(crate) fn delete(cx: &mut Cx, cwd: &Cwd, w: &Word, strong: bool) {
         return;
     };
     Builder::push_unique(&mut cx.b.deletes, &w.text);
+    note_outside(cx, cwd, w, zone);
     // A name with an extension is most likely a file: "and everything in it" would mislead.
     let base = w.text.trim_end_matches(['/', '\\']).rsplit(['/', '\\']).next().unwrap_or("");
     let looks_like_file = !w.glob && base.rfind('.').is_some_and(|i| i > 0 && i + 1 < base.len());
@@ -314,10 +322,24 @@ pub(crate) fn read(cx: &mut Cx, cwd: &Cwd, w: &Word) {
         return;
     }
     if zone_of(cx, cwd, w) == Some(Zone::Secret) {
-        cx.b.find(Flag::SensitivePath, Risk::Caution, format!("reads {}, which holds secrets", short(&w.text)));
-        Builder::push_unique(&mut cx.b.secret_reads, &w.text);
+        let kind = paths::secret_kind(&resolved(cx, cwd, w).into_iter().next().unwrap_or_else(|| w.text.to_lowercase()));
+        cx.b.find(Flag::SensitivePath, Risk::Caution, format!("reads {kind}"));
+        Builder::push_unique(&mut cx.b.secret_reads, &kind);
+        note_outside(cx, cwd, w, Zone::Secret);
     }
     Builder::push_unique(&mut cx.b.reads, &w.text);
+}
+
+/// Remember paths outside the project that the request touches, for the peek's "where" line.
+fn note_outside(cx: &mut Cx, cwd: &Cwd, w: &Word, zone: Zone) {
+    if matches!(zone, Zone::Sink | Zone::Temp | Zone::Project | Zone::ProjectRoot | Zone::GitInternals) {
+        return;
+    }
+    let project = paths::norm(&cx.ctx.project);
+    // Shown as written in the request, so it reads the way the person would type it.
+    if resolved(cx, cwd, w).iter().any(|p| !paths::within(p, &project)) {
+        Builder::push_unique(&mut cx.b.outside, &w.text);
+    }
 }
 
 /// The source of a move: it is gone from where it was.
