@@ -32,6 +32,16 @@ pub fn remember_foreground() {
     }
 }
 
+/// The last non-Crest window that was in front before the island was used.
+pub fn previous() -> HWND {
+    let hwnd = PREVIOUS.load(Ordering::Relaxed) as HWND;
+    if hwnd.is_null() || unsafe { IsWindow(hwnd) } == 0 {
+        std::ptr::null_mut()
+    } else {
+        hwnd
+    }
+}
+
 fn key(vk: u16, up: bool) -> INPUT {
     INPUT {
         r#type: INPUT_KEYBOARD,

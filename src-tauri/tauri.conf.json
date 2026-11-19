@@ -4,7 +4,7 @@
   "version": "1.0.1",
   "identifier": "local.crest.island",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run bridge && npm run dev",
     "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"

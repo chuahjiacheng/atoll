@@ -234,7 +234,21 @@ fn reply_in_claude(app: AppHandle, session_id: String, text: String) -> Result<(
     if text.is_empty() {
         return Err("Nothing to send.".into());
     }
-    reply::send_to_claude(&text)?;
+    // A reply can take several seconds to land (Claude shows its buttons late
+    // while in the background). Ignore another pick for the same session until
+    // then, so one answer is never sent twice.
+    static IN_FLIGHT: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    {
+        let mut busy = IN_FLIGHT.lock().unwrap();
+        if busy.contains(&session_id) {
+            return Ok(());
+        }
+        busy.push(session_id.clone());
+    }
+    let is_choice = app.state::<AppState>().sessions.lock().unwrap().is_choice(&session_id, &text);
+    let sent = reply::send_to_claude(&text, is_choice);
+    IN_FLIGHT.lock().unwrap().retain(|s| s != &session_id);
+    sent?;
     if app.state::<AppState>().sessions.lock().unwrap().answered(&session_id) {
         emit_sessions(&app);
     }
@@ -1164,6 +1178,8 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             let port = server::start(handle.clone())?;
+            // Replies from the island hand the keyboard back to your last app.
+            reply::track_your_app();
             app.state::<AppState>().port.store(port, Ordering::Relaxed);
             println!("[crest] listening on 127.0.0.1:{port}");
 

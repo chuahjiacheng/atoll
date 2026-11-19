@@ -221,6 +221,24 @@
   async function replyToAsk(s: Session, text: string) {
     await api.replyInClaude(s.id, text);
   }
+  /** Why the last pick from the peek didn't reach Claude, by askKey. */
+  let askFailed = $state<Record<string, string>>({});
+  /** A pick from the peek: shrink straight back to the pill and send in the
+   *  background. If it fails, the peek comes back saying why. */
+  function pickFromPeek(s: Session, text: string) {
+    const key = askKey(s);
+    askHidden = [...askHidden, key];
+    askFailed = { ...askFailed, [key]: "" };
+    clearTimeout(collapseTimer);
+    hoverSnoozed = true;
+    hovering = false;
+    done();
+    api.replyInClaude(s.id, text).catch((e) => {
+      askFailed = { ...askFailed, [key]: String(e) };
+      askHidden = askHidden.filter((k) => k !== key);
+    });
+    return Promise.resolve();
+  }
   const mode = $derived<"pill" | "peek" | "panel">(perm || asking ? "peek" : expanded ? "panel" : digest || finished ? "peek" : "pill");
   // ---------- which state gets the pill (src-tauri/src/arbiter.rs) ----------
   // Every source only says what it has to offer; the arbiter decides. Needs
@@ -307,8 +325,13 @@
   }
 
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
+  /** After you pick a reply the island shrinks to the pill even though the
+   *  cursor is still on it; it stays shut until the cursor leaves. */
+  let hoverSnoozed = false;
   function setHover(inside: boolean) {
     clearTimeout(collapseTimer);
+    if (inside && hoverSnoozed) return;
+    if (!inside) hoverSnoozed = false;
     if (inside) {
       hovering = true;
       finishedId = null; // the peek opens into the panel
@@ -869,7 +892,8 @@
             ask={asking.ask}
             project={asking.project}
             {tone}
-            onPick={(label) => replyToAsk(asking, label)}
+            onPick={(label) => pickFromPeek(asking, label)}
+            failed={askFailed[askKey(asking)] ?? ""}
             onLater={() => (askHidden = [...askHidden, askKey(asking)])}
           />
         {/key}

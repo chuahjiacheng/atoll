@@ -519,6 +519,11 @@ impl SessionStore {
         }
     }
 
+    /// Is `text` one of the reply choices this session's question offers?
+    pub fn is_choice(&self, id: &str, text: &str) -> bool {
+        self.sessions.get(id).and_then(|s| s.ask.as_ref()).is_some_and(|a| a.choices.iter().any(|c| c == text))
+    }
+
     /// You answered the end-of-turn question (from the island): Claude is
     /// about to get your reply, so the question goes.
     pub fn answered(&mut self, id: &str) -> bool {

@@ -26,6 +26,7 @@
     now = Date.now(),
     onPick,
     onLater,
+    failed = "",
   }: {
     kind: "ask" | "question";
     project: string;
@@ -39,6 +40,8 @@
     onPick?: (label: string) => Promise<void>;
     /** Hide the peek; the question stays in the Agent tab. */
     onLater: () => void;
+    /** kind "ask": why the last pick didn't go through (the peek reopens to say so). */
+    failed?: string;
   } = $props();
 
   const questions = $derived<Question[]>(
@@ -57,7 +60,8 @@
   let typing = $state(false);
   let typed = $state("");
   let busy = $state(false);
-  let error = $state("");
+  // svelte-ignore state_referenced_locally
+  let error = $state(failed);
   let field = $state<HTMLInputElement>();
 
   const secondsLeft = $derived(request ? Math.max(0, Math.ceil((request.expiresAt - now) / 1000)) : 0);
