@@ -11,6 +11,7 @@
   import SwitchRow from "../ui/SwitchRow.svelte";
   import SegRow from "../ui/SegRow.svelte";
   import SliderRow from "../ui/SliderRow.svelte";
+  import { createHoldoff } from "../../lib/holdoff";
   import Badge from "../ui/Badge.svelte";
 
   let { s }: { s: Settings } = $props();
@@ -44,7 +45,11 @@
   let volumeTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Read from the Spotify app on this PC (no account needed). */
+  // Polls near an edit are ignored: Spotify is slow to show a change.
+  const hold = createHoldoff(6000);
+
   async function loadVolume() {
+    const started = hold.now();
     let v: number | null = null;
     try {
       v = await spotifyApi.appVolume();
@@ -57,7 +62,7 @@
     }
     volumeKnown = v != null;
     // Don't fight the slider while it's being dragged.
-    if (v != null && volumeTimer === undefined) volume = v;
+    if (v != null && volumeTimer === undefined && hold.accepts(started)) volume = v;
   }
 
   $effect(() => {
@@ -69,6 +74,7 @@
 
   function setVolume(v: number) {
     volume = v;
+    hold.touch();
     clearTimeout(volumeTimer);
     // Wait for the slider to settle: Spotify rate-limits its API.
     volumeTimer = setTimeout(async () => {

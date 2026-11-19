@@ -11,6 +11,7 @@
   import { settingsApi } from "../settings";
   import { clock, positionMs, spotifyApi, type Device, type Lyrics, type Player, type SpotifyStatus } from "../spotify";
   import { dur, ease, gsap, reduced, seconds } from "../motion";
+  import { createHoldoff } from "../holdoff";
   import GButton from "../glass/GButton.svelte";
   import { icon as ricon, react } from "../glass/bridge";
   import type { IconName } from "../ui/Icon.svelte";
@@ -103,15 +104,19 @@
   let volume = $state<number | null>(null);
   let volumeTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // A poll must not drag the slider back to the old value: Spotify takes a
+  // moment to show a change, so polls near an edit are ignored.
+  const hold = createHoldoff(6000);
+
   async function loadVolume() {
+    const started = hold.now();
     let v: number | null = null;
     try {
       v = await spotifyApi.appVolume();
     } catch {
       v = null;
     }
-    // Don't fight the slider while it's being dragged.
-    if (v != null && volumeTimer === undefined) volume = v;
+    if (v != null && volumeTimer === undefined && hold.accepts(started)) volume = v;
   }
   onMount(() => {
     loadVolume();
@@ -121,6 +126,7 @@
 
   function volumeChange(v: number) {
     volume = v;
+    hold.touch();
     clearTimeout(volumeTimer);
     // Spotify rate-limits its API: send once the slider rests.
     volumeTimer = setTimeout(() => {
