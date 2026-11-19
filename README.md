@@ -63,18 +63,24 @@ npm run app
 `npm run app` builds `crest-bridge.exe`, then starts Vite and the Tauri app. The first build
 takes a few minutes. Only one copy of Crest runs at a time; starting it again opens Settings.
 
-### Standalone exe (use this day to day)
+### Install it (use this day to day)
 
 The dev build (`npm run app`) runs unoptimised code through a live-reload server and is
-noticeably slower. For daily use, build and run the release exe:
+noticeably slower. For daily use, build the installer:
 
 ```bash
-npm run app:release
+npm run installer
 ```
 
-Produces `target\release\crest.exe` (and `crest-bridge.exe`). Run it directly. From the
-release build, press **Settings → Claude Code → Reinstall** once so the hooks use the release
-bridge, and turn on **Start with Windows** there (not from the dev build).
+It produces `targeteleaseundle
+sis\Atoll_<version>_x64-setup.exe`. Run it: Atoll is
+installed for your user (no admin rights) into `%LOCALAPPDATA%\Atoll`, gets a Start menu entry
+and shows up in **Settings → Apps → Installed apps** (and "Add or remove programs"), where you
+can uninstall it. Running a newer setup upgrades in place and keeps your hooks and settings.
+After installing, press **Settings → Claude Code → Reinstall** once so the hooks use the
+installed bridge, and turn on **Start with Windows** there.
+
+`npm run app:release` still builds a bare `targetelease\crest.exe` without an installer.
 
 ## The settings dashboard
 
@@ -368,9 +374,14 @@ up (island not running, bad JSON, connection refused...). Without it, it is alwa
 
 ## Uninstall
 
-Settings → Claude Code → **Remove**, or delete the entries whose command contains
-`crest-bridge` (hooks and `statusLine`) from `%USERPROFILE%\.claude\settings.json` (backups are
-written next to it as `settings.json.crest-backup-<timestamp>`). Turn off Start with Windows. Then
+Settings → Apps → Installed apps → **Atoll** → Uninstall. The uninstaller removes Atoll's hooks
+and status line from `%USERPROFILE%\.claude\settings.json` (other entries are kept, and a
+backup `settings.json.crest-backup-<timestamp>` is written next to it), Start with Windows, the
+toast registration and the installed bridge. Tick **Delete the application data** to also remove
+`%LOCALAPPDATA%\Crest` and `%APPDATA%\Crest` (settings, clipboard, whiteboard, history). Saved
+sign-ins (Spotify, Google) stay in Windows Credential Manager under "Crest".
+
+Without the installer: Settings → Claude Code → **Remove**, turn off Start with Windows, then
 delete `%LOCALAPPDATA%\Crest`, `%APPDATA%\Crest` and the registry key
 `HKCU\Software\Classes\AppUserModelId\local.crest.island`.
 

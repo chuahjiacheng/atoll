@@ -10,6 +10,7 @@
     "bridge:release": "cargo build -p crest-bridge --release",
     "app": "npm run bridge && tauri dev",
     "app:release": "npm run bridge:release && tauri build --no-bundle",
+    "installer": "tauri build",
     "tauri": "tauri"
   },
   "dependencies": {

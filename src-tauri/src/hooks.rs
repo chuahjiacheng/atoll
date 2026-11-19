@@ -185,11 +185,15 @@ pub fn install() -> Result<HookStatus, String> {
 pub fn uninstall() -> Result<HookStatus, String> {
     let path = paths::claude_settings();
     let mut settings = read_settings(&path)?;
+    let before = settings.clone();
     strip_ours(&mut settings);
     if statusline_is_ours(&settings) {
         settings.as_object_mut().unwrap().remove("statusLine");
     }
-    write_settings(&path, &settings)?;
+    // Nothing of ours there (e.g. the uninstaller on a PC without hooks): leave the file alone.
+    if settings != before {
+        write_settings(&path, &settings)?;
+    }
     Ok(status())
 }
 

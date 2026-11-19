@@ -1026,6 +1026,14 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
 }
 
 pub fn run() {
+    // Run by the Windows uninstaller: take Atoll's hooks and status line out of Claude Code's
+    // settings, then quit without starting the app.
+    if std::env::args().any(|a| a == "--uninstall-cleanup") {
+        if let Err(e) = hooks::uninstall() {
+            eprintln!("[crest] uninstall cleanup failed: {e}");
+        }
+        return;
+    }
     system::redirect_logs();
     let loaded = settings::load();
 

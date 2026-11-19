@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Crest",
+  "productName": "Atoll",
   "version": "1.0.1",
   "identifier": "local.crest.island",
   "build": {
     "beforeDevCommand": "npm run bridge && npm run dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run bridge:release && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -35,8 +35,17 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
     "targets": "nsis",
+    "publisher": "Atoll",
+    "shortDescription": "Atoll - a Dynamic Island for Claude Code",
+    "resources": { "../target/release/crest-bridge.exe": "crest-bridge.exe" },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "./installer-hooks.nsh"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
