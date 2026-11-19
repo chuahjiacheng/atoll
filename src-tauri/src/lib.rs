@@ -522,6 +522,11 @@ async fn spotify_action(app: AppHandle, action: String, value: Option<Value>) ->
 }
 
 #[tauri::command]
+async fn spotify_app_volume() -> Option<u8> {
+    tauri::async_runtime::spawn_blocking(spotify::read_app_volume).await.ok().flatten()
+}
+
+#[tauri::command]
 async fn spotify_devices(app: AppHandle) -> Result<Vec<spotify::Device>, String> {
     spotify::devices(&app).await
 }
@@ -1083,6 +1088,7 @@ pub fn run() {
             spotify_player,
             spotify_action,
             spotify_devices,
+            spotify_app_volume,
             get_lyrics,
             focus_get,
             focus_action,

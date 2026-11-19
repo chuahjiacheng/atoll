@@ -543,7 +543,8 @@ pub fn start(app: AppHandle) {
     crate::spotify_local::start(app);
 }
 
-/// play | pause | toggle | next | previous | seek (value = ms) | transfer (value = device id).
+/// play | pause | toggle | next | previous | seek (value = ms) | transfer (value = device id)
+/// | volume (value = 0-100, linked account only).
 /// Playback commands go to Spotify on this PC; with a linked account they
 /// fall back to the Web API (e.g. when playing on another device).
 pub async fn action(app: &AppHandle, action: &str, value: Option<Value>) -> Result<(), String> {
@@ -551,6 +552,14 @@ pub async fn action(app: &AppHandle, action: &str, value: Option<Value>) -> Resu
         let id = value.and_then(|v| v.as_str().map(String::from)).ok_or("transfer needs a device id")?;
         require_account(app)?;
         api(app, reqwest::Method::PUT, "/me/player", Some(json!({ "device_ids": [id], "play": true }))).await?;
+        return Ok(());
+    }
+    if action == "volume" {
+        // Spotify's own volume (the in-app slider), not the Windows mixer.
+        // Windows exposes no way to set it, so this is Web API only.
+        let pct = value.and_then(|v| v.as_u64()).ok_or("volume needs a percentage")?.min(100);
+        require_account(app)?;
+        api(app, reqwest::Method::PUT, &format!("/me/player/volume?volume_percent={pct}"), None).await?;
         return Ok(());
     }
     let ms = value.as_ref().and_then(Value::as_u64);
@@ -576,6 +585,24 @@ async fn web_action(app: &AppHandle, action: &str, ms: Option<u64>) -> Result<()
         other => return Err(format!("unknown action {other}")),
     };
     api(app, method, &path, None).await.map(|_| ())
+}
+
+/// Spotify's own volume (0-100) as the Spotify app on this PC shows it, read
+/// through Windows UI Automation: no account or Premium. Read only; Spotify
+/// ignores writes to its slider. None if the app isn't open or doesn't answer.
+pub fn read_app_volume() -> Option<u8> {
+    use std::os::windows::process::CommandExt;
+    use std::process::{Command, Stdio};
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let out = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", include_str!("spotify_volume.ps1")])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()?;
+    String::from_utf8_lossy(&out.stdout).trim().parse::<u8>().ok().map(|v| v.min(100))
 }
 
 pub async fn devices(app: &AppHandle) -> Result<Vec<Device>, String> {

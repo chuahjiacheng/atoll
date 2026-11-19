@@ -10,6 +10,7 @@
   import Row from "../ui/Row.svelte";
   import SwitchRow from "../ui/SwitchRow.svelte";
   import SegRow from "../ui/SegRow.svelte";
+  import SliderRow from "../ui/SliderRow.svelte";
   import Badge from "../ui/Badge.svelte";
 
   let { s }: { s: Settings } = $props();
@@ -35,6 +36,50 @@
     });
     return () => un.then((f) => f());
   });
+
+  // Spotify's own volume (the in-app slider). Windows can't set it, so it
+  // goes through the linked account's Web API.
+  let volume = $state(50);
+  let volumeKnown = $state(true);
+  let volumeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Read from the Spotify app on this PC (no account needed). */
+  async function loadVolume() {
+    let v: number | null = null;
+    try {
+      v = await spotifyApi.appVolume();
+      if (v == null && account) {
+        const d = (await spotifyApi.devices()).find((x) => x.isActive && x.volume != null);
+        v = d?.volume ?? null;
+      }
+    } catch {
+      v = null;
+    }
+    volumeKnown = v != null;
+    // Don't fight the slider while it's being dragged.
+    if (v != null && volumeTimer === undefined) volume = v;
+  }
+
+  $effect(() => {
+    if (!s.spotify.connected) return;
+    loadVolume();
+    const t = setInterval(loadVolume, 4000);
+    return () => clearInterval(t);
+  });
+
+  function setVolume(v: number) {
+    volume = v;
+    clearTimeout(volumeTimer);
+    // Wait for the slider to settle: Spotify rate-limits its API.
+    volumeTimer = setTimeout(async () => {
+      volumeTimer = undefined;
+      try {
+        await spotifyApi.action("volume", v);
+      } catch (e) {
+        toast(String(e), true);
+      }
+    }, 250);
+  }
 
   const connected = $derived(s.spotify.connected);
   const appOpen = $derived(!!status?.appOpen);
@@ -108,6 +153,25 @@
     {/if}
   </Row>
   <Row icon="info" label="Play, pause, skip and seek work with Spotify Free and Premium." help="Works with the Spotify app from spotify.com or the Microsoft Store. The Spotify website in a browser isn't picked up." />
+</Section>
+
+<Section title="Volume">
+  <SliderRow
+    label="Spotify volume"
+    help={account
+      ? "Spotify's own volume, separate from the Windows volume. Follows the Spotify app on this PC."
+      : volumeKnown
+        ? `Spotify's own volume is ${volume}%, as the Spotify app shows it. Windows can't change it: to set it here, link your Spotify account below (needs Premium).`
+        : "Open the Spotify app on this PC to see its volume here. To set it from here, link your Spotify account below (needs Premium)."}
+    value={volume}
+    min={0}
+    max={100}
+    step={1}
+    unit="%"
+    unitWord="percent"
+    disabled={!account}
+    onchange={setVolume}
+  />
 </Section>
 
 <Section

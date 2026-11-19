@@ -57,7 +57,7 @@ export interface Lyrics {
   state: "found" | "not_found" | "error";
 }
 
-export type SpotifyAction = "play" | "pause" | "toggle" | "next" | "previous" | "seek" | "transfer";
+export type SpotifyAction = "play" | "pause" | "toggle" | "next" | "previous" | "seek" | "transfer" | "volume";
 
 export const spotifyApi = {
   status: () => invoke<SpotifyStatus>("spotify_status"),
@@ -69,6 +69,8 @@ export const spotifyApi = {
   unlinkAccount: () => invoke<void>("spotify_logout"),
   player: () => invoke<Player | null>("spotify_player"),
   action: (action: SpotifyAction, value?: number | string) => invoke<void>("spotify_action", { action, value }),
+  /** Spotify's own volume as the app on this PC shows it (read only, no account). */
+  appVolume: () => invoke<number | null>("spotify_app_volume"),
   devices: () => invoke<Device[]>("spotify_devices"),
   lyrics: (trackId: string) => invoke<Lyrics | null>("get_lyrics", { trackId }),
 };
