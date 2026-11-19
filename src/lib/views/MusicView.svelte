@@ -264,7 +264,6 @@
             },
           }}
         ></div>
-        <span class="time label tabular">{volume}%</span>
       </div>
     {/if}
 
@@ -309,8 +308,9 @@
   .menu { display: flex; }
   .seek { display: flex; align-items: center; gap: var(--sp-12); }
   .slider { flex: 1; min-width: 0; }
-  .volume { display: flex; align-items: center; gap: var(--sp-12); color: var(--c-muted); }
-  .vol-icon { display: grid; place-items: center; min-width: var(--sp-32); }
+  /* Small and tucked to the right, under the seek bar's end. */
+  .volume { display: flex; align-items: center; gap: var(--sp-8); width: 140px; margin-left: auto; color: var(--c-muted); }
+  .vol-icon { display: grid; place-items: center; flex: none; }
   .time { min-width: var(--sp-32); text-align: center; }
   .error { margin: 0; color: var(--c-error); font-size: var(--fs-small); }
   .lyrics {

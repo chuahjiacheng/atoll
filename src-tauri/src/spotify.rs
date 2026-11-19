@@ -427,13 +427,17 @@ async fn access_token(app: &AppHandle) -> Result<String, String> {
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(Value::Null);
     if !status.is_success() {
-        if body.get("error").and_then(Value::as_str) == Some("invalid_grant") {
-            // Refresh tokens expire after ~6 months: sign in again.
+        let err = body.get("error").and_then(Value::as_str).unwrap_or("");
+        // invalid_grant: the sign-in expired or was revoked (refresh tokens last
+        // ~6 months). invalid_client: it belongs to a different client ID than the
+        // one in Settings now. Either way it can never work again: sign in again.
+        if err == "invalid_grant" || err == "invalid_client" {
             unlink_account(app);
             set_error(app, Some("The linked Spotify account signed out. Link it again to switch devices.".into()));
             return Err("The linked Spotify account signed out. Link it again in Settings → Spotify.".into());
         }
-        return Err(format!("Token refresh failed ({status})"));
+        let why = body.get("error_description").and_then(Value::as_str).unwrap_or(err);
+        return Err(format!("Token refresh failed ({status}{}{why})", if why.is_empty() { "" } else { ": " }));
     }
     store_tokens(app, &body);
     let token = s.token.lock().unwrap().clone();
