@@ -96,6 +96,39 @@
     }, seconds("--dur-seek-commit") * 1000);
   }
 
+  // Spotify's own volume (its in-app slider, not the Windows mixer). Read from
+  // the Spotify app on this PC through UI Automation, no sign-in. Spotify
+  // ignores writes to its slider, so changing it needs the linked account
+  // (Web API, Premium).
+  let volume = $state<number | null>(null);
+  let volumeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  async function loadVolume() {
+    let v: number | null = null;
+    try {
+      v = await spotifyApi.appVolume();
+    } catch {
+      v = null;
+    }
+    // Don't fight the slider while it's being dragged.
+    if (v != null && volumeTimer === undefined) volume = v;
+  }
+  onMount(() => {
+    loadVolume();
+    const t = setInterval(loadVolume, 4000);
+    return () => clearInterval(t);
+  });
+
+  function volumeChange(v: number) {
+    volume = v;
+    clearTimeout(volumeTimer);
+    // Spotify rate-limits its API: send once the slider rests.
+    volumeTimer = setTimeout(() => {
+      volumeTimer = undefined;
+      run("volume", v);
+    }, seconds("--dur-seek-commit") * 1000);
+  }
+
   function deviceIcon(d: Device): IconName {
     const k = d.kind.toLowerCase();
     return k.includes("smartphone") || k.includes("phone") ? "phone" : k.includes("computer") ? "laptop" : "speaker";
@@ -212,6 +245,29 @@
       <span class="time label tabular">{clock(track.durationMs)}</span>
     </div>
 
+    {#if volume !== null}
+      <div class="volume" title={account ? "Spotify volume" : "Link your Spotify account in Settings to change Spotify's volume"}>
+        <span class="vol-icon"><Icon name={volume === 0 ? "volumeOff" : "volume"} size={16} /></span>
+        <div
+          class="slider"
+          use:react={{
+            component: Slider,
+            props: {
+              "aria-label": "Spotify volume",
+              "aria-valuetext": `${volume}%`,
+              min: 0,
+              max: 100,
+              step: 1,
+              disabled: !account,
+              value: volume,
+              onValueChange: volumeChange,
+            },
+          }}
+        ></div>
+        <span class="time label tabular">{volume}%</span>
+      </div>
+    {/if}
+
     {#if error}<p class="error" role="alert">{error}</p>{/if}
 
     {#if lyricsOn}
@@ -253,6 +309,8 @@
   .menu { display: flex; }
   .seek { display: flex; align-items: center; gap: var(--sp-12); }
   .slider { flex: 1; min-width: 0; }
+  .volume { display: flex; align-items: center; gap: var(--sp-12); color: var(--c-muted); }
+  .vol-icon { display: grid; place-items: center; min-width: var(--sp-32); }
   .time { min-width: var(--sp-32); text-align: center; }
   .error { margin: 0; color: var(--c-error); font-size: var(--fs-small); }
   .lyrics {
