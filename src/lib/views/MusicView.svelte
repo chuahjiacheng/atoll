@@ -246,8 +246,13 @@
     </div>
 
     {#if volume !== null}
-      <div class="volume" title={account ? "Spotify volume" : "Link your Spotify account in Settings to change Spotify's volume"}>
+      <div class="volume" class:wide={!account} title="Spotify volume">
         <span class="vol-icon"><Icon name={volume === 0 ? "volumeOff" : "volume"} size={16} /></span>
+        {#if !account}
+          <!-- Spotify ignores volume changes sent through Windows: setting it needs the linked account. -->
+          <span class="time label tabular">{volume}%</span>
+          <GButton label="Link account to change" onclick={() => settingsApi.openDashboard()} />
+        {:else}
         <div
           class="slider"
           use:react={{
@@ -264,6 +269,7 @@
             },
           }}
         ></div>
+        {/if}
       </div>
     {/if}
 
@@ -310,6 +316,7 @@
   .slider { flex: 1; min-width: 0; }
   /* Small and tucked to the right, under the seek bar's end. */
   .volume { display: flex; align-items: center; gap: var(--sp-8); width: 140px; margin-left: auto; color: var(--c-muted); }
+  .volume.wide { width: auto; }
   .vol-icon { display: grid; place-items: center; flex: none; }
   .time { min-width: var(--sp-32); text-align: center; }
   .error { margin: 0; color: var(--c-error); font-size: var(--fs-small); }
