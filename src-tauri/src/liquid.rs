@@ -22,8 +22,10 @@
 use std::sync::{Arc, Mutex};
 
 use windows::core::{Interface, Ref, PCSTR};
-use windows::Foundation::TypedEventHandler;
-use windows::Graphics::Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession};
+use windows::Foundation::{TimeSpan, TypedEventHandler};
+use windows::Graphics::Capture::{
+    Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureDirtyRegionMode, GraphicsCaptureItem, GraphicsCaptureSession,
+};
 use windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
 use windows::Graphics::DirectX::DirectXPixelFormat;
 use windows::Graphics::SizeInt32;
@@ -40,6 +42,10 @@ use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemIntero
 /// Desktop kept around the island window, so the rim can bend in what lies
 /// beyond its edge and the blur has something to pull from.
 const MARGIN: i32 = 96;
+
+/// The desktop under the glass is re-read at most this often (ms). Under a
+/// blur, 30 updates a second look the same as 60 and cost half as much.
+const CAPTURE_EVERY_MS: i64 = 33;
 
 /// What the glass looks like (from Settings → Appearance), plus where it is.
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -162,6 +168,8 @@ struct Capture {
     session: GraphicsCaptureSession,
     monitor: isize,
     size: SizeInt32,
+    /// Windows accepted dirty-region reporting (so an empty list means "no change").
+    dirty_ok: bool,
 }
 
 struct Inner {
@@ -343,8 +351,15 @@ impl Liquid {
             let _ = session.SetIsCursorCaptureEnabled(false);
             // Windows 11 lets a desktop app drop the yellow capture border.
             let _ = session.SetIsBorderRequired(false);
+            // Smoothness: report which parts of the screen changed, so frames
+            // that change nothing near the island are skipped (a video or a
+            // scrolling page elsewhere no longer redraws the glass), and take
+            // at most one frame per CAPTURE_EVERY_MS (Windows 11 24H2+; older
+            // builds ignore both and keep every frame).
+            let dirty_ok = session.SetDirtyRegionMode(GraphicsCaptureDirtyRegionMode::ReportOnly).is_ok();
+            let _ = session.SetMinUpdateInterval(TimeSpan { Duration: CAPTURE_EVERY_MS * 10_000 });
             session.StartCapture()?;
-            g.capture = Some(Capture { _item: item, pool, session, monitor, size });
+            g.capture = Some(Capture { _item: item, pool, session, monitor, size, dirty_ok });
         }
         Ok(())
     }
@@ -382,17 +397,57 @@ impl Liquid {
                     return;
                 }
             }
+            if !g.frame_matters(&frame, size) {
+                let _ = frame.Close();
+                return;
+            }
             let Ok(surface) = frame.Surface() else { return };
             let Ok(access) = surface.cast::<IDirect3DDxgiInterfaceAccess>() else { return };
             let Ok(frame_tex) = access.GetInterface::<ID3D11Texture2D>() else { return };
             let _ = g.copy_frame(&frame_tex, size);
-            let _ = g.draw();
+            // While the island's shape is moving, backdrop.rs draws a frame on
+            // every refresh from the newest copy. Drawing here as well would
+            // present twice per refresh and make the two threads queue on
+            // each other (the stutter seen while the island opened).
+            if !crate::shape::moving(crate::shape::now_ms()) {
+                let _ = g.draw();
+            }
         }
         let _ = frame.Close();
     }
 }
 
 impl Inner {
+    /// The part of the monitor the glass reads (window ± margin), in monitor px:
+    /// (left, top, right, bottom), clamped to the monitor. None when empty.
+    fn wanted(&self, size: SizeInt32) -> Option<(i32, i32, i32, i32)> {
+        let (wx, wy, ww, wh) = self.window;
+        if ww <= 0 || wh <= 0 {
+            return None;
+        }
+        let (mx, my) = self.monitor_origin;
+        let left = (wx - MARGIN - mx).clamp(0, size.Width);
+        let top = (wy - MARGIN - my).clamp(0, size.Height);
+        let right = (wx + ww + MARGIN - mx).clamp(0, size.Width);
+        let bottom = (wy + wh + MARGIN - my).clamp(0, size.Height);
+        (right > left && bottom > top).then_some((left, top, right, bottom))
+    }
+
+    /// Does this captured frame change anything the glass shows? False only
+    /// when Windows reported where the screen changed, none of it is near
+    /// the island, and the copy we hold already covers the island's area.
+    fn frame_matters(&self, frame: &Direct3D11CaptureFrame, size: SizeInt32) -> bool {
+        let (Some(source), Some(area)) = (self.source.as_ref(), self.wanted(size)) else { return true };
+        let (mx, my) = self.monitor_origin;
+        let held = (source.rect.0 - mx, source.rect.1 - my, source.rect.0 - mx + source.rect.2, source.rect.1 - my + source.rect.3);
+        if held != area || !self.capture.as_ref().is_some_and(|c| c.dirty_ok) {
+            return true;
+        }
+        let Ok(regions) = frame.DirtyRegions() else { return true };
+        let Ok(n) = regions.Size() else { return true };
+        touches(area, (0..n).filter_map(|i| regions.GetAt(i).ok()).map(|r| (r.X, r.Y, r.Width, r.Height)))
+    }
+
     /// Copy the island window's surroundings out of a captured monitor frame.
     unsafe fn copy_frame(&mut self, frame: &ID3D11Texture2D, size: SizeInt32) -> windows::core::Result<()> {
         let (wx, wy, ww, wh) = self.window;
@@ -515,5 +570,39 @@ impl Liquid {
 
     pub fn has_frame(&self) -> bool {
         self.0.lock().unwrap().source.is_some()
+    }
+}
+
+/// Does any changed rectangle (x, y, w, h) overlap `area` (left, top, right, bottom)?
+fn touches(area: (i32, i32, i32, i32), mut changed: impl Iterator<Item = (i32, i32, i32, i32)>) -> bool {
+    changed.any(|(x, y, w, h)| w > 0 && h > 0 && x < area.2 && x + w > area.0 && y < area.3 && y + h > area.1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::touches;
+
+    // The glass reads 600..1300 x 0..700 of the monitor.
+    const AREA: (i32, i32, i32, i32) = (600, 0, 1300, 700);
+
+    #[test]
+    fn changes_far_from_the_island_are_skipped() {
+        // A video in the bottom-left corner, a taskbar clock.
+        assert!(!touches(AREA, [(0, 800, 500, 300), (1800, 1150, 100, 50)].into_iter()));
+        // Edges only meet: no overlap.
+        assert!(!touches(AREA, [(1300, 0, 50, 50), (0, 0, 600, 700), (600, 700, 10, 10)].into_iter()));
+        // Nothing changed at all.
+        assert!(!touches(AREA, std::iter::empty()));
+        // Empty rectangles never count.
+        assert!(!touches(AREA, [(700, 100, 0, 50)].into_iter()));
+    }
+
+    #[test]
+    fn changes_under_or_beside_the_island_redraw() {
+        assert!(touches(AREA, [(0, 800, 10, 10), (650, 50, 10, 10)].into_iter()));
+        // A window spanning the whole screen.
+        assert!(touches(AREA, [(0, 0, 1920, 1200)].into_iter()));
+        // Clipping just the margin's corner.
+        assert!(touches(AREA, [(1299, 699, 5, 5)].into_iter()));
     }
 }

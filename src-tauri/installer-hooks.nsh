@@ -12,7 +12,11 @@
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Crest"
     ; Toast identity.
     DeleteRegKey HKCU "Software\Classes\AppUserModelId\local.crest.island"
-    ; The copy of crest-bridge.exe the hooks pointed at.
+    ; The copy of crest-bridge.exe the hooks pointed at (current and pre-1.0.3 place),
+    ; and the runtime file.
+    RMDir /r "$PROFILE\.atoll\bin"
+    Delete "$PROFILE\.atoll\runtime.json"
+    RMDir "$PROFILE\.atoll"
     RMDir /r "$LOCALAPPDATA\Crest\bin"
   ${EndIf}
 !macroend

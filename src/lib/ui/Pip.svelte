@@ -54,7 +54,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { dur, ease, gsap, reduced, seconds } from "../motion";
-  import { px } from "../theme";
 
   let {
     mood = "idle",
@@ -94,19 +93,9 @@
     gsap.fromTo(face, { scaleY: 0.6, svgOrigin: "32 38" }, { scaleY: 1, svgOrigin: "32 38", duration: dur("fast"), ease: ease() });
   });
 
-  // Music bob: a slow, small rise and fall. Stops (and resets) when music stops.
-  let bobTween: gsap.core.Tween | null = null;
-  $effect(() => {
-    const on = bob && !reduced();
-    if (!svg) return;
-    bobTween?.kill();
-    bobTween = null;
-    if (on) {
-      bobTween = gsap.to(svg, { y: -px("--bob-height"), duration: seconds("--dur-bob"), ease: "steps(3)", yoyo: true, repeat: -1 });
-    } else {
-      gsap.to(svg, { y: 0, duration: dur("fast"), ease: ease() });
-    }
-  });
+  // Music bob: a slow, small rise and fall in three steps while music plays
+  // (the .bob class below). A CSS animation rather than a GSAP tween, so it
+  // doesn't wake the page's script on every frame for as long as music plays.
 
   function poke(e: MouseEvent) {
     if (!pokeable) return;
@@ -122,7 +111,6 @@
   }
 
   onMount(() => () => {
-    bobTween?.kill();
     if (svg) gsap.killTweensOf([svg, body, face]);
   });
 </script>
@@ -137,6 +125,7 @@
   role="img"
   aria-label={LABELS[shown]}
   class="pip tone-{tone}"
+  class:bob
   onclick={poke}
 >
   <g bind:this={body}>
@@ -155,6 +144,9 @@
 
 <style>
   .pip { display: block; flex: none; overflow: visible; }
+  .pip.bob { animation: pip-bob var(--dur-bob) steps(3, end) infinite alternate; }
+  :global([data-reduce-motion="true"]) .pip.bob { animation: none; }
+  @keyframes pip-bob { to { transform: translateY(calc(-1 * var(--bob-height))); } }
   .tone-peri { --pip-body: var(--pip-peri); --pip-edge: var(--pip-peri-edge); }
   .tone-mint { --pip-body: var(--pip-mint); --pip-edge: var(--pip-mint-edge); }
   .tone-peach { --pip-body: var(--pip-peach); --pip-edge: var(--pip-peach-edge); }

@@ -915,11 +915,12 @@ fn start_click_through(app: AppHandle) {
         let mut placed: Option<(tauri::PhysicalPosition<i32>, f64)> = None;
         let mut island_hwnd: isize = 0;
         let mut ticks: u32 = 0;
+        let mut wait_ms: u64 = 16;
         loop {
-            // ~60 Hz: hover feels instant. Each poll is one GetCursorPos plus a
-            // mutex read, so this costs next to nothing.
-            std::thread::sleep(Duration::from_millis(16));
-            ticks = ticks.wrapping_add(1);
+            // ~60 Hz near the island, so hover feels instant. Far from it (the
+            // usual case) ~20 Hz: a pointer can't cross FAR_PX in that time.
+            std::thread::sleep(Duration::from_millis(wait_ms));
+            ticks = ticks.wrapping_add(if wait_ms > 16 { 3 } else { 1 });
             let Some(win) = app.get_webview_window(ISLAND) else { continue };
             if placed.is_none() || ticks % 60 == 0 {
                 if let (Ok(pos), Ok(scale)) = (win.outer_position(), win.scale_factor()) {
@@ -945,6 +946,11 @@ fn start_click_through(app: AppHandle) {
             if island_hwnd == 0 {
                 island_hwnd = win.hwnd().map(|h| h.0 as isize).unwrap_or(0);
             }
+            // Distance from the island's rectangle (0 inside), physical px.
+            const FAR_PX: f64 = 240.0;
+            let dx = (left - cursor.x).max(cursor.x - (left + r.w * scale)).max(0.0);
+            let dy = (top - cursor.y).max(cursor.y - (top + r.h * scale)).max(0.0);
+            wait_ms = if dx.max(dy) > FAR_PX { 50 } else { 16 };
             let inside = cursor.x >= left
                 && cursor.x <= left + r.w * scale
                 && cursor.y >= top
@@ -1229,6 +1235,9 @@ pub fn run() {
                 tauri::async_runtime::spawn_blocking(move || usage::scan_recent(&h));
             }
             usage::start_sign_in_checks(handle.clone());
+            // Hooks from 1.0.2 and earlier point at a bridge in AppData, which the
+            // Claude desktop app's Code tab can't see properly; move them.
+            tauri::async_runtime::spawn_blocking(hooks::migrate_if_moved);
             start_settings_saver(handle);
             build_tray(app)?;
             system::update_tray(app.handle());

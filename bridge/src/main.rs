@@ -145,12 +145,14 @@ fn statusline() {
     println!("{}", if parts.is_empty() { "Atoll".to_string() } else { parts.join(" · ") });
 }
 
-/// The island writes `%LOCALAPPDATA%\Crest\runtime.json` = {"port":..,"token":".."}.
+/// The island writes `%USERPROFILE%\.atoll\runtime.json` = {"port":..,"token":".."}.
+/// Not AppData: inside the Claude desktop app (an MSIX package) AppData is a
+/// private copy, so a file there can be a stale one the island never sees.
+/// `%LOCALAPPDATA%\Crest\runtime.json` is only read for islands up to 1.0.2.
 fn read_runtime_file() -> Option<(u16, String)> {
-    let path = PathBuf::from(std::env::var("LOCALAPPDATA").ok()?)
-        .join("Crest")
-        .join("runtime.json");
-    let text = std::fs::read_to_string(path).ok()?;
+    let current = std::env::var_os("USERPROFILE").map(|p| PathBuf::from(p).join(".atoll").join("runtime.json"));
+    let legacy = std::env::var_os("LOCALAPPDATA").map(|p| PathBuf::from(p).join("Crest").join("runtime.json"));
+    let text = [current, legacy].into_iter().flatten().find_map(|p| std::fs::read_to_string(p).ok())?;
     let v: Value = serde_json::from_str(&text).ok()?;
     let port = u16::try_from(v.get("port")?.as_u64()?).ok()?;
     let token = v.get("token")?.as_str()?.to_string();

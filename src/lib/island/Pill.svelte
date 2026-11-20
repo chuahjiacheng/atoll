@@ -9,7 +9,6 @@
            intention or a distraction nudge when there is one
 -->
 <script lang="ts">
-  import { onMount } from "svelte";
   import Icon, { type IconName } from "../ui/Icon.svelte";
   import Pip, { type Mood, type Tone } from "../ui/Pip.svelte";
   import { dur, gsap, reduced, seconds } from "../motion";
@@ -71,17 +70,9 @@
     onclick: () => void;
   } = $props();
 
-  // The busy arc turns while an agent works (stops otherwise; never on reduced motion).
-  let spinner = $state<HTMLSpanElement>();
-  let spin: gsap.core.Tween | null = null;
-  $effect(() => {
-    spin?.kill();
-    spin = null;
-    if (spinner && icon === "busy" && !reduced()) {
-      spin = gsap.to(spinner, { rotation: 360, duration: seconds("--dur-spin"), ease: "none", repeat: -1 });
-    }
-  });
-  onMount(() => () => spin?.kill());
+  // The busy arc turns while an agent works (stops otherwise; never on reduced
+  // motion). A CSS animation, not a GSAP tween: it runs on the compositor, so
+  // the page's script isn't woken on every frame for as long as an agent works.
 
   // Timer ring: r 9 in a 24 box, so a 3 px stroke fits.
   const MINI_R = 9;
@@ -190,7 +181,7 @@
       <span class="dot" aria-hidden="true"></span>
     {:else}
       <span class="word {tint}">
-        <span class="spin" bind:this={spinner}><Icon name={icon} size={16} /></span>
+        <span class="spin" class:turning={icon === "busy"}><Icon name={icon} size={16} /></span>
         <span>{word}</span>
       </span>
       <!-- A new step or message fades over the old one instead of switching. -->
@@ -239,6 +230,9 @@
   .word.error { color: var(--c-error); }
   .word.accent { color: var(--c-accent-text); }
   .spin { display: flex; }
+  .spin.turning { animation: pill-spin var(--dur-spin) linear infinite; }
+  :global([data-reduce-motion="true"]) .spin.turning { animation: none; }
+  @keyframes pill-spin { to { transform: rotate(360deg); } }
   .line {
     flex: 1;
     min-width: 0;

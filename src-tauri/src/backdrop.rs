@@ -24,7 +24,7 @@
 //! - `probe_rounded_blur` (an ignored test) shows it for a moment at the top
 //!   left of the screen and saves a capture, to check it on a given PC.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::ptr::{null, null_mut};
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -434,6 +434,8 @@ struct LiquidVisual {
     renderer: Liquid,
     visual: SpriteVisual,
     geometry: CompositionRoundedRectangleGeometry,
+    /// Window and shape last given to the visuals.
+    placed: Cell<Option<((i32, i32, i32, i32), Shape)>>,
 }
 
 impl LiquidVisual {
@@ -449,16 +451,21 @@ impl LiquidVisual {
         visual.SetClip(&compositor.CreateGeometricClipWithGeometry(&geometry)?)?;
         visual.SetIsVisible(false)?;
         root.Children()?.InsertAtTop(&visual)?;
-        Ok(LiquidVisual { renderer, visual, geometry })
+        Ok(LiquidVisual { renderer, visual, geometry, placed: Cell::new(None) })
     }
 
     /// Size it to the window, clip it to `s`, and hand the renderer the look.
     /// Returns whether the renderer presented a new frame.
     fn place(&self, window: (i32, i32, i32, i32), s: Shape, look: Look) -> windows::core::Result<bool> {
-        self.visual.SetSize(Vector2 { X: window.2 as f32, Y: window.3 as f32 })?;
-        self.geometry.SetOffset(Vector2 { X: s.x as f32, Y: s.y as f32 })?;
-        self.geometry.SetSize(Vector2 { X: s.w as f32, Y: s.h as f32 })?;
-        self.geometry.SetCornerRadius(Vector2 { X: s.r as f32, Y: s.r as f32 })?;
+        // The slow resync calls this four times a second at rest: only touch
+        // the visuals when something changed (each change is a compositor commit).
+        if self.placed.get() != Some((window, s)) {
+            self.visual.SetSize(Vector2 { X: window.2 as f32, Y: window.3 as f32 })?;
+            self.geometry.SetOffset(Vector2 { X: s.x as f32, Y: s.y as f32 })?;
+            self.geometry.SetSize(Vector2 { X: s.w as f32, Y: s.h as f32 })?;
+            self.geometry.SetCornerRadius(Vector2 { X: s.r as f32, Y: s.r as f32 })?;
+            self.placed.set(Some((window, s)));
+        }
         Ok(self.renderer.set(look, window))
     }
 }

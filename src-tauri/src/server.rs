@@ -3,8 +3,9 @@
 //! Security:
 //! - Binds to 127.0.0.1 only, on a random free port.
 //! - Every request must carry `X-Crest-Token` equal to a 256-bit random token
-//!   generated at launch. Port + token are written to `%LOCALAPPDATA%\Crest\runtime.json`
-//!   (inside the user's own profile) for the bridge to read.
+//!   generated at launch. Port + token are written to `%USERPROFILE%\.atoll\runtime.json`
+//!   (inside the user's own profile, outside AppData - see `paths::shared_dir`)
+//!   for the bridge to read.
 //! - Requests with an `Origin` header are rejected, so a web page in a browser
 //!   cannot talk to the listener even if it guessed the port.
 
@@ -51,9 +52,11 @@ pub fn start(app: AppHandle) -> std::io::Result<u16> {
     let port = std_listener.local_addr()?.port();
     let token = random_token();
 
-    std::fs::create_dir_all(paths::local_dir())?;
+    std::fs::create_dir_all(paths::shared_dir())?;
     let runtime = json!({ "port": port, "token": token, "pid": std::process::id() });
     std::fs::write(paths::runtime_file(), runtime.to_string())?;
+    // An old-location file would only point a stale bridge at a dead port.
+    let _ = std::fs::remove_file(paths::legacy_runtime_file());
 
     let ctx = Ctx { token: Arc::new(token), app };
     let router = Router::new()

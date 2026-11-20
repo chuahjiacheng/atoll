@@ -3,8 +3,9 @@
 //! - Merges: other hooks (e.g. your graphify hooks) are left untouched.
 //! - Our entries are recognised by the command containing `crest-bridge`.
 //! - A timestamped backup of settings.json is written before every change.
-//! - The bridge exe is copied to `%LOCALAPPDATA%\Crest\bin` so hooks keep
-//!   working when the project is rebuilt or moved.
+//! - The bridge exe is copied to `%USERPROFILE%\.atoll\bin` so hooks keep
+//!   working when the project is rebuilt or moved (not AppData: see
+//!   `paths::shared_dir`). Hooks left at the old AppData path are moved on start.
 //!
 //! Config format: https://code.claude.com/docs/en/hooks ("Hook locations", "Matcher patterns").
 
@@ -182,6 +183,40 @@ pub fn install() -> Result<HookStatus, String> {
     Ok(status())
 }
 
+/// True when our hooks or status line are installed but run a bridge other
+/// than the current one (e.g. the AppData path used up to 1.0.2).
+fn points_elsewhere(settings: &Value) -> bool {
+    let want = bridge_command();
+    let hook_moved = settings.get("hooks").and_then(Value::as_object).into_iter().flat_map(|h| h.values()).any(|groups| {
+        groups.as_array().into_iter().flatten().any(|g| {
+            g.get("hooks").and_then(Value::as_array).into_iter().flatten().any(|h| {
+                is_ours(h) && h.get("command").and_then(Value::as_str) != Some(want.as_str())
+            })
+        })
+    });
+    let line_moved = statusline_is_ours(settings)
+        && settings.pointer("/statusLine/command").and_then(Value::as_str) != Some(format!("{want} statusline").as_str());
+    hook_moved || line_moved
+}
+
+/// On start: if the hooks still point at an old bridge location, or the
+/// bridge they run is missing, reinstall them so you don't have to. Leaves
+/// settings.json alone when the hooks aren't installed at all.
+pub fn migrate_if_moved() {
+    let Ok(settings) = read_settings(&paths::claude_settings()) else { return };
+    let has_ours = !status().installed_events.is_empty() || statusline_is_ours(&settings);
+    if !has_ours || (!points_elsewhere(&settings) && paths::installed_bridge().exists()) {
+        return;
+    }
+    match install() {
+        Ok(_) => {
+            println!("[atoll] hooks moved to {}", paths::installed_bridge().display());
+            let _ = std::fs::remove_dir_all(paths::legacy_bridge_dir());
+        }
+        Err(e) => eprintln!("[atoll] could not move the hooks: {e}"),
+    }
+}
+
 pub fn uninstall() -> Result<HookStatus, String> {
     let path = paths::claude_settings();
     let mut settings = read_settings(&path)?;
@@ -227,5 +262,25 @@ mod tests {
         let yours = json!({ "statusLine": { "type": "command", "command": "~/.claude/statusline.sh" } });
         assert!(!statusline_is_ours(&yours));
         assert!(mine["statusLine"]["command"].as_str().unwrap().ends_with(" statusline"));
+    }
+
+    #[test]
+    fn old_bridge_path_is_detected() {
+        // Freshly installed: nothing to move.
+        let mut fresh = json!({ "statusLine": statusline_value() });
+        add_ours(&mut fresh);
+        assert!(!points_elsewhere(&fresh));
+        // Hooks from 1.0.2 (AppData bridge) must be moved.
+        let old = "C:/Users/x/AppData/Local/Crest/bin/crest-bridge.exe";
+        let stale = json!({ "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": old } ] } ] } });
+        assert!(points_elsewhere(&stale));
+        let stale_line = json!({ "statusLine": { "type": "command", "command": format!("{old} statusline") } });
+        assert!(points_elsewhere(&stale_line));
+        // Someone else's hooks are never ours to move.
+        let foreign = json!({ "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": "graphify hook" } ] } ] } });
+        assert!(!points_elsewhere(&foreign));
+        // New location is outside AppData.
+        assert!(!paths::installed_bridge().to_string_lossy().contains("AppData"));
+        assert!(!paths::runtime_file().to_string_lossy().contains("AppData"));
     }
 }

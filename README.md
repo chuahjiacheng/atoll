@@ -141,8 +141,11 @@ Claude Code ──hook event (stdin JSON)──▶ crest-bridge.exe ──HTTP P
   `PostToolUse`, `PostToolUseFailure`, `Notification`, `Stop` and `StopFailure`.
 - For `PermissionRequest` the listener holds the request open until you click in the island,
   then answers with the documented decision JSON (`hookSpecificOutput.decision.behavior`).
-- The bridge reads `%LOCALAPPDATA%\Crest\runtime.json` (port + 256-bit token, regenerated every
-  launch, deleted on exit).
+- The bridge reads `%USERPROFILE%\.atoll\runtime.json` (port + 256-bit token, regenerated every
+  launch, deleted on exit). The hooks run `%USERPROFILE%\.atoll\bin\crest-bridge.exe`. Both live
+  outside AppData on purpose: the Claude desktop app is an MSIX package, so its Code tab (and the
+  hooks it runs) sees a private copy of AppData, which can hide the file the installed Atoll
+  writes. Hooks installed by 1.0.2 or earlier are moved there automatically when Atoll starts.
 - The listener binds to **127.0.0.1 only**, rejects requests without the token, and rejects any
   request carrying a browser `Origin` header.
 - **Fail-open:** if Crest is not running (or Claude Code is switched off in Settings), Claude
@@ -365,7 +368,7 @@ Send a fake event through the bridge by hand (PowerShell, with Crest running):
 
 ```powershell
 $env:CREST_DEBUG = "1"
-'{"session_id":"t1","cwd":"C:\\work\\demo","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"C:\\work\\demo\\a.rs"}}' | & "$env:LOCALAPPDATA\Crest\bin\crest-bridge.exe"
+'{"session_id":"t1","cwd":"C:\\work\\demo","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"C:\\work\\demo\\a.rs"}}' | & "$env:USERPROFILE\.atoll\bin\crest-bridge.exe"
 ```
 
 The island should show `demo · Reading a.rs`. With `CREST_DEBUG=1` the bridge prints why it gave
