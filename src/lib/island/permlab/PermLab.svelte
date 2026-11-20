@@ -28,7 +28,7 @@
         <h2>{i + 1}. {f.name}</h2>
         <div class="hull" data-sample={i + 1}>
           <PermissionPeek
-            request={f.request}
+            request={f.name === "Routine command" ? { ...f.request, rule: { ruleId: "a", ruleName: "npm test, tail in proj", whyNot: "its dry run never saw “npm run build” allowed" } } : f.request}
             folder="C:\Users\me\proj"
             queued={f.name.startsWith("Risky delete") ? 3 : 1}
             now={0}

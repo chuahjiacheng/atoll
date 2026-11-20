@@ -45,6 +45,7 @@ mod paste;
 mod paths;
 mod permissions;
 mod reply;
+mod rules; // permission-intel: permission rules (dry run, opt-in auto-allow, decision log)
 mod server;
 mod sessions;
 mod settings;
@@ -1168,6 +1169,17 @@ pub fn run() {
             palette_ready,
             palette_hide,
             // ---- search-clipboard: end ----
+            // ---- permission-intel: begin ----
+            rules::commands::rules_list,
+            rules::commands::rules_save,
+            rules::commands::rules_delete,
+            rules::commands::rules_disable,
+            rules::commands::rules_dry_run,
+            rules::commands::rules_log,
+            rules::commands::rules_from_request,
+            rules::commands::rules_take_draft,
+            rules::commands::rules_draft_waiting,
+            // ---- permission-intel: end ----
             pause_hotkeys,
             #[cfg(debug_assertions)]
             debug_renew_sign_in,

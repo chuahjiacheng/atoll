@@ -338,8 +338,22 @@ async fn wait_for_choice(app: &AppHandle, event: &Value, session_id: &str) -> Ch
     // ---- permission-intel: begin ----
     // The session's starting folder is the project (the event's cwd follows every `cd`).
     let project_dir = state.sessions.lock().unwrap().snapshot().into_iter().find(|s| s.id == session_id).map(|s| s.cwd).unwrap_or_default();
-    let intel = permissions::analyze(event, project_dir).await;
+    let intel = permissions::analyze(event, project_dir.clone()).await;
+    // Rules: a rule you armed may allow it without asking (never a risky or unchecked
+    // request, never wider than its dry run). The decision is logged; the island hears it.
+    let (facts, rule) = crate::rules::check(event, &intel, &project_dir);
+    if let Some(auto) = rule.auto {
+        println!("[crest] permission for {session_id}: allowed by rule {:?}", auto.rule_name);
+        use tauri::Emitter;
+        let _ = app.emit("permissions:auto-allowed", &auto);
+        crate::rules::commands::changed(app);
+        if state.sessions.lock().unwrap().resume(session_id) {
+            crate::emit_sessions(app);
+        }
+        return Choice::Allow;
+    }
     let (id, rx) = state.permissions.lock().unwrap().push(event, project, Some(intel));
+    state.permissions.lock().unwrap().set_rules(id, facts.clone(), rule.hint);
     // ---- permission-intel: end ----
     let _guard = PendingGuard { app: app.clone(), id };
     crate::emit_permissions(app);
@@ -348,6 +362,7 @@ async fn wait_for_choice(app: &AppHandle, event: &Value, session_id: &str) -> Ch
         Ok(Ok(choice)) => choice,
         _ => Choice::Pass, // timed out or dropped: let Claude Code ask in the terminal
     };
+    crate::rules::record_answer(&facts, &choice); // permission-intel: kinds only, for dry runs
     println!("[crest] permission #{id} for {session_id}: answering {choice:?}");
     if choice != Choice::Pass && state.sessions.lock().unwrap().resume(session_id) {
         crate::emit_sessions(app);
