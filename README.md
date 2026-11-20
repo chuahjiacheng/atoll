@@ -77,6 +77,7 @@ sis\Atoll_<version>_x64-setup.exe`. Run it: Atoll is
 installed for your user (no admin rights) into `%LOCALAPPDATA%\Atoll`, gets a Start menu entry
 and shows up in **Settings → Apps → Installed apps** (and "Add or remove programs"), where you
 can uninstall it. Running a newer setup upgrades in place and keeps your hooks and settings.
+Each build deletes the setups of older versions from that folder, so only the newest is left.
 After installing, press **Settings → Claude Code → Reinstall** once so the hooks use the
 installed bridge, and turn on **Start with Windows** there.
 
