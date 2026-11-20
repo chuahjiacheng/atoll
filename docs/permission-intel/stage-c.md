@@ -1,4 +1,4 @@
-# Permission intelligence — Stage C: rules (awaiting approval)
+# Permission intelligence — Stage C: rules (approved 2026-11-20)
 
 Branch `permission-intel`, commits `765474d` (engine) and `35cabcb` (page and peek). Builds on Stage A (`stage-a.md`) and Stage B (`stage-b.md`). Not merged into `main` yet.
 
@@ -90,4 +90,4 @@ The dry run reads that log. The recorder session's history (`docs/contracts/even
 7. Try a risky command the rule's program could run (for example `npm test; rm -rf ~`): it must always ask.
 8. Quit Atoll, put `{` into `%LOCALAPPDATA%\Crest\permissions\rules.json`, and start it: a red banner, no rules acting, and a `rules.json.broken-…` file beside it.
 
-**[Unverified]** Steps 1–8 were not run in the real app. They were checked in the rules lab and the peek lab (a stubbed backend) and in the Rust store tests, not end to end through Claude Code's hook.
+The user ran these steps in the real app and approved Stage C on 2026-11-20. Before that, they were checked only in the labs and the Rust store tests.

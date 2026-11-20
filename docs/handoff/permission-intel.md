@@ -3,7 +3,7 @@
 Branch `permission-intel`, worktree `.claude/worktrees/permission-intel`. Written 2026-11-20.
 
 - Stages A and B are approved and in `main` (merge `1ad8ae0`).
-- Stage C (rules) is committed on the branch (`765474d`, `35cabcb`) and **waits for approval**; it is not merged.
+- Stage C (rules) is committed on the branch (`765474d`, `35cabcb`) and was **approved on 2026-11-20** after a live run; it is not merged into `main` yet.
 
 Details per stage: `docs/permission-intel/stage-a.md`, `stage-b.md`, `stage-c.md`, and `corpus-results.md`.
 
@@ -75,7 +75,7 @@ cd src-tauri && cargo test --release rules_timing -- --ignored --nocapture
 
 ## Open issues
 
-- **[Unverified] Stage C has not run end to end** through Claude Code's hook in the real app; only the labs and the Rust store tests.
+- Stage C was checked end to end by the user in the real app on 2026-11-20 (approved).
 - **[Unverified]** "Claude Code's deny rules win over a hook's allow" is from its documentation, not tested here.
 - **Seg focus ring** (`src/dashboard/ui/Seg.svelte`, Milestone 1–2, not this branch's): on a selected segment the 2 px focus outline matches the fill, so keyboard focus can't be seen there. Affects every Settings page.
 - The rules page can't yet show per-kind counts in the dry run, or let you untick single kinds before allowing.
