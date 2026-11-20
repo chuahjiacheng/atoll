@@ -72,7 +72,7 @@ noticeably slower. For daily use, build the installer:
 npm run installer
 ```
 
-It produces `targeteleaseundle
+It produces `target\releaseundle
 sis\Atoll_<version>_x64-setup.exe`. Run it: Atoll is
 installed for your user (no admin rights) into `%LOCALAPPDATA%\Atoll`, gets a Start menu entry
 and shows up in **Settings → Apps → Installed apps** (and "Add or remove programs"), where you
@@ -80,7 +80,7 @@ can uninstall it. Running a newer setup upgrades in place and keeps your hooks a
 After installing, press **Settings → Claude Code → Reinstall** once so the hooks use the
 installed bridge, and turn on **Start with Windows** there.
 
-`npm run app:release` still builds a bare `targetelease\crest.exe` without an installer.
+`npm run app:release` still builds a bare `target\release\crest.exe` without an installer.
 
 ## The settings dashboard
 
