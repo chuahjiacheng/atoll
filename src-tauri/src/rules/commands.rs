@@ -87,3 +87,9 @@ pub fn rules_from_request(app: AppHandle, id: u64) -> Result<(), String> {
 pub fn rules_take_draft() -> Option<Rule> {
     DRAFT.lock().unwrap().take()
 }
+
+/// Is a draft waiting? (The Settings window asks when it opens, without taking it.)
+#[tauri::command]
+pub fn rules_draft_waiting() -> bool {
+    DRAFT.lock().unwrap().is_some()
+}

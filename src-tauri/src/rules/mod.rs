@@ -59,7 +59,7 @@ fn load() -> Book {
                 // Keep the damaged file for the person, and act on no rule (never a guess).
                 let aside = path.with_file_name(format!("rules.json.broken-{}", now_ms()));
                 let _ = std::fs::rename(&path, &aside);
-                Book { rules: vec![], error: Some(format!("Your rules file was damaged ({e}). It was set aside as {}, and no rule is acting.", aside.display())) }
+                Book { rules: vec![], error: Some(format!("Your rules file was damaged and could not be read, so no rule is acting. It was set aside as {}; rules you add now start a new file.", aside.display())) }
             }
         },
     }

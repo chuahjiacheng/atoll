@@ -478,11 +478,12 @@ pub fn draft(f: &Facts, project_name: &str, now: u64) -> Rule {
     };
     let what = match f.tool.as_str() {
         "Bash" | "PowerShell" => pattern.join(", "),
-        "files" => format!("edits in {}", pattern.join(", ")),
-        "WebFetch" => format!("pages from {}", pattern.join(", ")),
+        "files" => format!("Edits in {}", pattern.join(", ")),
+        "WebFetch" => format!("Pages from {}", pattern.join(", ")),
         t => t.trim_start_matches("mcp__").replace("__", " · ").replace('_', " "),
     };
-    let mut name = format!("Allow {what}");
+    // Named by what it covers, not "Allow …": most rules only hint, and the status line says which.
+    let mut name = what;
     if !project_name.is_empty() {
         name.push_str(&format!(" in {project_name}"));
     }
@@ -686,7 +687,7 @@ mod tests {
         let f = bash("cd src && npm test 2>&1 | tail -15");
         let d = draft(&f, "proj", NOW);
         assert_eq!(d.pattern, ["npm test", "tail"]);
-        assert_eq!(d.name, "Allow npm test, tail in proj");
+        assert_eq!(d.name, "npm test, tail in proj");
         assert_eq!(d.project.as_deref(), Some("c:/p"));
         assert!(validate(&d, NOW).is_ok());
         assert_eq!(draft(&edit("C:/p/src/lib/a.ts"), "", NOW).pattern, ["src/lib/**"]);
@@ -715,5 +716,49 @@ mod tests {
         let f = facts(&ev, &a, "C:/p");
         let r = Rule { id: "q".into(), name: "q".into(), enabled: true, tool: "AskUserQuestion".into(), auto_allow: true, expires_at: Some(NOW + DAY_MS), ..Default::default() };
         assert_eq!(decide(&[r], &f, "", NOW), Decision::default());
+    }
+
+    /// Timing for the Stage C report: `cargo test --release -- --ignored --nocapture rules_timing`.
+    /// 50 armed rules against one request (the hook's path), and a dry run over the full 10,000-answer log.
+    #[test]
+    #[ignore]
+    fn rules_timing() {
+        let seen = bash("npm test");
+        let mut history: Vec<Answer> = (0..10_000).map(|i| answer(&seen, if i % 7 == 0 { "deny" } else { "allow" })).collect();
+        for (i, a) in history.iter_mut().enumerate() {
+            if i % 3 == 0 {
+                a.keys = vec![format!("cargo build{}", i % 40)];
+            }
+        }
+        let rules: Vec<Rule> = (0..50)
+            .map(|i| {
+                let mut r = armed(&[if i == 49 { "npm test" } else { "cargo build" }], &history[..200]);
+                r.id = format!("r{i}");
+                r
+            })
+            .collect();
+        let req = bash("npm test");
+        let t = std::time::Instant::now();
+        let n = 1000;
+        for _ in 0..n {
+            std::hint::black_box(decide(&rules, &req, "Runs tests.", NOW));
+        }
+        let per = t.elapsed().as_secs_f64() * 1e6 / n as f64;
+        let t = std::time::Instant::now();
+        let d = dry_run(&rules[49], &history, &[], NOW);
+        let dry = t.elapsed().as_secs_f64() * 1e3;
+        println!("decide over 50 rules: {per:.1} us per request; dry run over {} answers: {dry:.2} ms (matched {})", history.len(), d.matched);
+    }
+}
+
+#[cfg(test)]
+mod parity {
+    use super::*;
+
+    /// The Settings page computes the same fingerprint (src/lib/rules.test.ts checks this value).
+    #[test]
+    fn fingerprint_matches_the_page() {
+        let r = Rule { tool: "Bash".into(), project: Some("c:/users/me/proj".into()), pattern: vec!["npm test".into(), " Tail ".into(), "npm test".into()], ..Default::default() };
+        assert_eq!(fingerprint(&r), "c264f5babbc7a4a1".to_string(), "update rules.test.ts if this changes: {}", fingerprint(&r));
     }
 }

@@ -67,6 +67,8 @@ export interface Permission {
   // ---- permission-intel: begin ----
   /** What the request does and how risky it is (absent if the app predates it). */
   intel?: PermissionIntel;
+  /** A rule matched but still asks (Stage C). */
+  rule?: import("./rules").RuleHint;
   // ---- permission-intel: end ----
 }
 

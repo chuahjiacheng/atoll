@@ -30,6 +30,11 @@
   import MascotPage from "./pages/MascotPage.svelte";
   import PrivacyPage from "./pages/PrivacyPage.svelte";
   import AboutPage from "./pages/AboutPage.svelte";
+  // ---- permission-intel: begin ----
+  import RulesPage from "./pages/RulesPage.svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
+  // ---- permission-intel: end ----
 
   type Page = { id: string; title: string; icon: IconName; desc: string; reset?: ResetSection };
   const PAGES: Page[] = [
@@ -37,6 +42,7 @@
     { id: "appearance", title: "Appearance", icon: "palette", desc: "Size, shape, colours and motion of the island. Changes show in the preview straight away.", reset: "appearance" },
     { id: "modules", title: "Modules", icon: "grid", desc: "Turn modules on or off and set their tab order in the expanded island.", reset: "modules" },
     { id: "agents", title: "AI agents", icon: "agent", desc: "Connect Claude Code and choose what the island shows.", reset: "agents" },
+    { id: "rules", title: "Permission rules", icon: "shield", desc: "Let Atoll notice, and if you say so answer, the permission requests you keep allowing." }, // permission-intel
     { id: "spotify", title: "Spotify", icon: "music", desc: "Show and control the Spotify app on this PC. One click, no sign-in.", reset: "spotify" },
     { id: "calendar", title: "Calendar", icon: "calendar", desc: "Connect your Google account and choose which calendars the island shows.", reset: "calendar" },
     { id: "clipboard", title: "Clipboard and whiteboard", icon: "clipboard", desc: "Clipboard history, privacy and whiteboard options.", reset: "clipboard" },
@@ -142,6 +148,22 @@
     else gsap.ticker.remove(raf);
   }
 
+  // ---- permission-intel: begin ----
+  // The peek's "Make a rule…" opens this window on the rules page with a draft.
+  let rulesPage = $state<{ draftArrived: () => void }>();
+  async function toRules() {
+    if (page === "rules") rulesPage?.draftArrived();
+    else await go("rules");
+  }
+  onMount(() => {
+    invoke<boolean>("rules_draft_waiting").then((waiting) => {
+      if (waiting) toRules();
+    }).catch(() => {});
+    const un = listen<string>("settings:goto", (e) => e.payload === "rules" && toRules());
+    return () => un.then((f) => f());
+  });
+  // ---- permission-intel: end ----
+
   onMount(() => {
     init().catch((e) => (loadError = String(e)));
     const unSystem = watchSystem(() => systemTick++);
@@ -223,6 +245,7 @@
             {:else if page === "appearance"}<AppearancePage {s} scroller={mainEl!} />
             {:else if page === "modules"}<ModulesPage {s} />
             {:else if page === "agents"}<AgentsPage {s} />
+            {:else if page === "rules"}<RulesPage bind:this={rulesPage} /><!-- permission-intel -->
             {:else if page === "spotify"}<SpotifyPage {s} />
             {:else if page === "calendar"}<CalendarPage {s} />
             {:else if page === "clipboard"}<ClipboardPage {s} />

@@ -1170,6 +1170,7 @@ pub fn run() {
             rules::commands::rules_log,
             rules::commands::rules_from_request,
             rules::commands::rules_take_draft,
+            rules::commands::rules_draft_waiting,
             // ---- permission-intel: end ----
             pause_hotkeys,
             #[cfg(debug_assertions)]

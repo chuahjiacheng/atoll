@@ -16,6 +16,7 @@
   import Icon, { type IconName } from "../ui/Icon.svelte";
   import Pip, { type Tone } from "../ui/Pip.svelte";
   import { highlight } from "./highlight";
+  import { rulesApi } from "../rules";
 
   let {
     request,
@@ -151,6 +152,16 @@
     return replying && document.activeElement === field();
   }
 
+  // Opens Settings → Permission rules with a rule drafted from this request.
+  async function makeRule() {
+    error = "";
+    try {
+      await rulesApi.fromRequest(request.id);
+    } catch (e) {
+      error = `Atoll couldn't start a rule (${String(e).replace(/^Error:\s*/, "")}).`;
+    }
+  }
+
   async function openReply() {
     replying = true;
     await tick();
@@ -181,6 +192,12 @@
           <Icon name="folder" size={16} />
           {#if request.project}<span class="project">{request.project}</span>{/if}
           {#if folder}<span class="ellipsis">{truncFolder(folder)}</span>{/if}
+        </div>
+      {/if}
+      {#if request.rule}
+        <div class="rule" title={`Your rule “${request.rule.ruleName}” matches, but it still asks you: ${request.rule.whyNot}.`}>
+          <Icon name="shield" size={16} />
+          <span class="clamp">Rule “{request.rule.ruleName}” matches. Still asks: {request.rule.whyNot}.</span>
         </div>
       {/if}
     </div>
@@ -289,6 +306,7 @@
     {#if !replying}
       <button class="link" onclick={openReply}>Reply instead</button>
     {/if}
+    <button class="link" disabled={busy} onclick={makeRule} title="Open Settings with a rule for requests like this one">Make a rule…</button>
     <button class="link" disabled={busy} onclick={() => decide("pass")} title="Let Claude Code ask you in its own window">Answer in Claude</button>
   </div>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -329,6 +347,9 @@
   .where { display: flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-small); color: var(--c-muted); min-width: 0; }
   .where :global(.icon) { flex: none; }
   .where.outside { color: var(--c-ink); }
+  .rule { display: flex; align-items: flex-start; gap: var(--sp-8); font-size: var(--fs-small); color: var(--c-muted); min-width: 0; }
+  .rule :global(.icon) { flex: none; color: var(--c-accent-text); }
+  .rule .clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; min-width: 0; }
   .where.outside :global(.icon) { color: var(--c-error); }
   .project { color: var(--c-ink); font-weight: var(--fw-strong); flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
