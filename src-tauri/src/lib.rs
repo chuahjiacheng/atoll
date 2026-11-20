@@ -177,6 +177,9 @@ pub(crate) fn commit_settings(app: &AppHandle, next: Settings) {
     if prev.focus != next.focus || prev.modules.focus != next.modules.focus {
         focus::settings_changed(app);
     }
+    if next.modules.claude && !prev.modules.claude {
+        tauri::async_runtime::spawn_blocking(hooks::install_if_missing);
+    }
     if prev.modules.claude != next.modules.claude && !next.modules.claude {
         // Switching Claude Code off hands any waiting prompts back to Claude Code.
         let ids: Vec<String> = state.permissions.lock().unwrap().views().into_iter().map(|p| p.session_id).collect();
@@ -901,12 +904,17 @@ fn hooks_status() -> hooks::HookStatus {
 
 #[tauri::command]
 fn install_hooks() -> Result<hooks::HookStatus, String> {
-    hooks::install()
+    let status = hooks::install()?;
+    hooks::set_removed_by_user(false);
+    Ok(status)
 }
 
 #[tauri::command]
 fn uninstall_hooks() -> Result<hooks::HookStatus, String> {
-    hooks::uninstall()
+    let status = hooks::uninstall()?;
+    // Selected Remove: don't add them back on the next start.
+    hooks::set_removed_by_user(true);
+    Ok(status)
 }
 
 // ---------- background helpers ----------
@@ -1248,7 +1256,14 @@ pub fn run() {
             usage::start_sign_in_checks(handle.clone());
             // Hooks from 1.0.2 and earlier point at a bridge in AppData, which the
             // Claude desktop app's Code tab can't see properly; move them.
-            tauri::async_runtime::spawn_blocking(hooks::migrate_if_moved);
+            // A fresh install (Connect on) sets the bridge and hooks up itself.
+            let claude_on = current.modules.claude;
+            tauri::async_runtime::spawn_blocking(move || {
+                hooks::migrate_if_moved();
+                if claude_on {
+                    hooks::install_if_missing();
+                }
+            });
             start_settings_saver(handle);
             build_tray(app)?;
             system::update_tray(app.handle());

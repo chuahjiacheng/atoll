@@ -226,6 +226,45 @@ pub fn migrate_if_moved() {
     }
 }
 
+/// Written when you select Remove in Settings → AI agents, so Atoll doesn't put
+/// the hooks back by itself. Install deletes it. Kept with Atoll's own data, so
+/// a reinstall that keeps the data keeps the choice.
+fn removed_marker() -> std::path::PathBuf {
+    paths::local_dir().join("hooks-removed")
+}
+
+/// Remember (or forget) that you removed the hooks yourself.
+pub fn set_removed_by_user(removed: bool) {
+    let marker = removed_marker();
+    if removed {
+        let _ = std::fs::create_dir_all(paths::local_dir());
+        let _ = std::fs::write(&marker, b"");
+    } else {
+        let _ = std::fs::remove_file(&marker);
+    }
+}
+
+/// Should a start set the bridge and hooks up by itself?
+fn should_auto_install(removed_by_user: bool, claude_present: bool, has_ours: bool) -> bool {
+    !removed_by_user && claude_present && !has_ours
+}
+
+/// On start (and when Connect is turned on): a fresh install has the bridge
+/// only next to Atoll's exe, so nothing reaches the island until the hooks
+/// are installed. Install them, unless Claude Code isn't on this PC, the hooks
+/// are already there (even partly), or you removed them yourself.
+pub fn install_if_missing() {
+    let Ok(settings) = read_settings(&paths::claude_settings()) else { return };
+    let has_ours = !status().installed_events.is_empty() || statusline_is_ours(&settings);
+    if !should_auto_install(removed_marker().exists(), paths::claude_dir().is_dir(), has_ours) {
+        return;
+    }
+    match install() {
+        Ok(_) => println!("[atoll] bridge and hooks installed at {}", paths::installed_bridge().display()),
+        Err(e) => eprintln!("[atoll] could not install the hooks: {e}"),
+    }
+}
+
 pub fn uninstall() -> Result<HookStatus, String> {
     let path = paths::claude_settings();
     let mut settings = read_settings(&path)?;
@@ -244,6 +283,14 @@ pub fn uninstall() -> Result<HookStatus, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auto_install_only_on_a_clean_pc_with_claude_code() {
+        assert!(should_auto_install(false, true, false));
+        assert!(!should_auto_install(true, true, false), "you removed them: leave them off");
+        assert!(!should_auto_install(false, false, false), "no Claude Code: don't create its settings");
+        assert!(!should_auto_install(false, true, true), "already installed (or partly): leave as is");
+    }
 
     #[test]
     fn merge_keeps_foreign_hooks() {
