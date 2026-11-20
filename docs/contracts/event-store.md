@@ -108,7 +108,7 @@ refreshing every 60 s does not fill the table.
    random password typed into a prompt with no label) cannot be detected.
    The UI says so next to the "delete all" button.
 
-Note: `crest-bridge` already drops `tool_response` and cuts every string
+Note: `atoll-bridge` already drops `tool_response` and cuts every string
 to 4,000 characters before Atoll sees the event, so the store never holds
 tool output, and long `Edit` contents are stored cut short.
 

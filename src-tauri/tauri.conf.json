@@ -39,7 +39,7 @@
     "targets": "nsis",
     "publisher": "Atoll",
     "shortDescription": "Atoll - a Dynamic Island for Claude Code",
-    "resources": { "../target/release/crest-bridge.exe": "crest-bridge.exe" },
+    "resources": { "../target/release/atoll-bridge.exe": "atoll-bridge.exe" },
     "windows": {
       "nsis": {
         "installMode": "currentUser",

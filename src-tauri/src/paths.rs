@@ -35,6 +35,11 @@ pub fn legacy_runtime_file() -> PathBuf {
 
 /// Stable location the hooks point at, so rebuilding the app never breaks them.
 pub fn installed_bridge() -> PathBuf {
+    shared_dir().join("bin").join("atoll-bridge.exe")
+}
+
+/// The bridge's name up to 1.0.3, in the same folder (removed once hooks move).
+pub fn legacy_installed_bridge() -> PathBuf {
     shared_dir().join("bin").join("crest-bridge.exe")
 }
 
@@ -46,7 +51,7 @@ pub fn legacy_bridge_dir() -> PathBuf {
 /// The freshly built bridge, next to the running app exe (target\debug or target\release).
 pub fn built_bridge() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
-    Some(exe.parent()?.join("crest-bridge.exe"))
+    Some(exe.parent()?.join("atoll-bridge.exe"))
 }
 
 /// Claude Code user settings: `%USERPROFILE%\.claude\settings.json`.

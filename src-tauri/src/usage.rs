@@ -4,7 +4,7 @@
 //! Claude Code runs our status line command with JSON on stdin that includes
 //! `rate_limits.five_hour` / `rate_limits.seven_day` = { used_percentage, resets_at }
 //! for Pro/Max/Ultra subscribers, after the first reply of a session.
-//! `crest-bridge.exe statusline` forwards that to `POST /statusline`.
+//! `atoll-bridge.exe statusline` forwards that to `POST /statusline`.
 //!
 //! Second source, for the Claude desktop app (its Code tab doesn't run the
 //! status line): each session's log file (the transcript Claude Code writes

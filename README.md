@@ -60,7 +60,7 @@ npm install
 npm run app
 ```
 
-`npm run app` builds `crest-bridge.exe`, then starts Vite and the Tauri app. The first build
+`npm run app` builds `atoll-bridge.exe`, then starts Vite and the Tauri app. The first build
 takes a few minutes. Only one copy of Crest runs at a time; starting it again opens Settings.
 
 ### Install it (use this day to day)
@@ -132,17 +132,17 @@ Left click: open Settings. Right click: show/hide island, Settings…, Start / P
 ## How Claude Code is followed
 
 ```
-Claude Code ──hook event (stdin JSON)──▶ crest-bridge.exe ──HTTP POST + token──▶ Crest (127.0.0.1:random)
+Claude Code ──hook event (stdin JSON)──▶ atoll-bridge.exe ──HTTP POST + token──▶ Crest (127.0.0.1:random)
             ◀──── decision JSON (stdout) ──────────────  ◀──────── response ─────────
 ```
 
-- Claude Code [hooks](https://code.claude.com/docs/en/hooks) run `crest-bridge.exe` on
+- Claude Code [hooks](https://code.claude.com/docs/en/hooks) run `atoll-bridge.exe` on
   `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`,
   `PostToolUse`, `PostToolUseFailure`, `Notification`, `Stop` and `StopFailure`.
 - For `PermissionRequest` the listener holds the request open until you click in the island,
   then answers with the documented decision JSON (`hookSpecificOutput.decision.behavior`).
 - The bridge reads `%USERPROFILE%\.atoll\runtime.json` (port + 256-bit token, regenerated every
-  launch, deleted on exit). The hooks run `%USERPROFILE%\.atoll\bin\crest-bridge.exe`. Both live
+  launch, deleted on exit). The hooks run `%USERPROFILE%\.atoll\bin\atoll-bridge.exe`. Both live
   outside AppData on purpose: the Claude desktop app is an MSIX package, so its Code tab (and the
   hooks it runs) sees a private copy of AppData, which can hide the file the installed Atoll
   writes. Hooks installed by 1.0.2 or earlier are moved there automatically when Atoll starts.
@@ -187,7 +187,7 @@ notifications go straight to the Notification Centre without a banner.
 
 Claude Code's [status line](https://code.claude.com/docs/en/statusline) receives your
 `rate_limits` (5-hour and weekly `used_percentage` + `resets_at`). **Install hooks / Reinstall**
-also sets Crest's status line (`crest-bridge.exe statusline`, refreshed every 60 s), which:
+also sets Crest's status line (`atoll-bridge.exe statusline`, refreshed every 60 s), which:
 - forwards the limits to the island (ring in the pill, details at the bottom of the open island;
   amber from 70%, red from 90%),
 - prints `Opus · ctx 34% · 5h 23% · wk 41%` at the bottom of Claude Code (works even when Crest is
@@ -328,7 +328,7 @@ from the tray. Settings live in **Settings → Focus timer**.
 ## Project layout
 
 ```
-bridge/                    crest-bridge.exe (hook command; tiny, no TLS)
+bridge/                    atoll-bridge.exe (hook command; tiny, no TLS)
 src-tauri/src/
   lib.rs                   startup wiring, shared state, commands for the UI, tray
   settings.rs              settings model, clamping, load/save (unit tested)
@@ -368,7 +368,7 @@ Send a fake event through the bridge by hand (PowerShell, with Crest running):
 
 ```powershell
 $env:CREST_DEBUG = "1"
-'{"session_id":"t1","cwd":"C:\\work\\demo","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"C:\\work\\demo\\a.rs"}}' | & "$env:USERPROFILE\.atoll\bin\crest-bridge.exe"
+'{"session_id":"t1","cwd":"C:\\work\\demo","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"C:\\work\\demo\\a.rs"}}' | & "$env:USERPROFILE\.atoll\bin\atoll-bridge.exe"
 ```
 
 The island should show `demo · Reading a.rs`. With `CREST_DEBUG=1` the bridge prints why it gave

@@ -76,7 +76,7 @@ const CORPUS: &[(&str, &str, &str, &str)] = &[
     ("caution", B, "H", "python scripts/build.py"),
     ("caution", B, "H", "pip install -r requirements.txt"),
     ("caution", B, "R", "npm install --save-exact gsap lenis @fontsource/inter"),
-    ("caution", B, "R", "cargo build -p crest-bridge"),
+    ("caution", B, "R", "cargo build -p atoll-bridge"),
     ("caution", B, "H", "git pull --rebase"),
     ("caution", B, "R", "git push origin main 2>&1 | tail -5"),
     ("caution", B, "R", "npx --yes vercel@latest deploy --prod --yes"),

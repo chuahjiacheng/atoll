@@ -1,4 +1,4 @@
-//! Local HTTP listener that receives hook events from `crest-bridge.exe`.
+//! Local HTTP listener that receives hook events from `atoll-bridge.exe`.
 //!
 //! Security:
 //! - Binds to 127.0.0.1 only, on a random free port.
@@ -96,7 +96,7 @@ fn authorize(ctx: &Ctx, headers: &HeaderMap, body: &Bytes) -> Result<Value, Resp
     serde_json::from_slice::<Value>(body).map_err(|_| StatusCode::BAD_REQUEST.into_response())
 }
 
-/// Connection test from `crest-bridge ping` (token-checked like every route).
+/// Connection test from `atoll-bridge ping` (token-checked like every route).
 async fn handle_ping(State(ctx): State<Ctx>, headers: HeaderMap, body: Bytes) -> Response {
     match authorize(&ctx, &headers, &body) {
         Ok(_) => Json(json!({ "ok": true, "app": "atoll" })).into_response(),
@@ -104,7 +104,7 @@ async fn handle_ping(State(ctx): State<Ctx>, headers: HeaderMap, body: Bytes) ->
     }
 }
 
-/// Usage data from `crest-bridge statusline`.
+/// Usage data from `atoll-bridge statusline`.
 async fn handle_statusline(State(ctx): State<Ctx>, headers: HeaderMap, body: Bytes) -> Response {
     let payload = match authorize(&ctx, &headers, &body) {
         Ok(v) => v,

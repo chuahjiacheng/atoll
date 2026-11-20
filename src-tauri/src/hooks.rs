@@ -1,7 +1,8 @@
 //! Installs / removes Crest's Claude Code hooks in `~/.claude/settings.json`.
 //!
 //! - Merges: other hooks (e.g. your graphify hooks) are left untouched.
-//! - Our entries are recognised by the command containing `crest-bridge`.
+//! - Our entries are recognised by the command containing `atoll-bridge`
+//!   (or `crest-bridge`, its name up to 1.0.3; those are moved on start).
 //! - A timestamped backup of settings.json is written before every change.
 //! - The bridge exe is copied to `%USERPROFILE%\.atoll\bin` so hooks keep
 //!   working when the project is rebuilt or moved (not AppData: see
@@ -16,7 +17,12 @@ use serde_json::{json, Map, Value};
 
 use crate::paths;
 
-const MARKER: &str = "crest-bridge";
+/// Current bridge name first, then older names that still count as ours.
+const MARKERS: &[&str] = &["atoll-bridge", "crest-bridge"];
+
+fn is_our_command(command: &str) -> bool {
+    MARKERS.iter().any(|m| command.contains(m))
+}
 
 /// (event, uses a tool-name matcher, hook timeout in seconds).
 /// Events without matchers match everything. PermissionRequest waits for a
@@ -41,7 +47,7 @@ fn statusline_value() -> Value {
 }
 
 fn statusline_is_ours(settings: &Value) -> bool {
-    settings.pointer("/statusLine/command").and_then(Value::as_str).is_some_and(|c| c.contains(MARKER))
+    settings.pointer("/statusLine/command").and_then(Value::as_str).is_some_and(is_our_command)
 }
 
 #[derive(Serialize)]
@@ -88,7 +94,7 @@ fn write_settings(path: &Path, value: &Value) -> Result<(), String> {
 }
 
 fn is_ours(handler: &Value) -> bool {
-    handler.get("command").and_then(Value::as_str).is_some_and(|c| c.contains(MARKER))
+    handler.get("command").and_then(Value::as_str).is_some_and(is_our_command)
 }
 
 /// Remove every Crest handler from a settings object, pruning empty groups.
@@ -161,7 +167,7 @@ pub fn status() -> HookStatus {
 pub fn install() -> Result<HookStatus, String> {
     // 1. Put the bridge in its stable location.
     let src = paths::built_bridge().filter(|p| p.exists()).ok_or(
-        "crest-bridge.exe was not found next to the app. Build it first: npm run bridge",
+        "atoll-bridge.exe was not found next to the app. Build it first: npm run bridge",
     )?;
     let dst = paths::installed_bridge();
     std::fs::create_dir_all(dst.parent().unwrap()).map_err(|e| e.to_string())?;
@@ -184,7 +190,8 @@ pub fn install() -> Result<HookStatus, String> {
 }
 
 /// True when our hooks or status line are installed but run a bridge other
-/// than the current one (e.g. the AppData path used up to 1.0.2).
+/// than the current one (e.g. the AppData path used up to 1.0.2, or the
+/// `crest-bridge.exe` name used up to 1.0.3).
 fn points_elsewhere(settings: &Value) -> bool {
     let want = bridge_command();
     let hook_moved = settings.get("hooks").and_then(Value::as_object).into_iter().flat_map(|h| h.values()).any(|groups| {
@@ -212,6 +219,8 @@ pub fn migrate_if_moved() {
         Ok(_) => {
             println!("[atoll] hooks moved to {}", paths::installed_bridge().display());
             let _ = std::fs::remove_dir_all(paths::legacy_bridge_dir());
+            // May fail while a hook is still running it; then it goes next start.
+            let _ = std::fs::remove_file(paths::legacy_installed_bridge());
         }
         Err(e) => eprintln!("[atoll] could not move the hooks: {e}"),
     }
@@ -276,6 +285,17 @@ mod tests {
         assert!(points_elsewhere(&stale));
         let stale_line = json!({ "statusLine": { "type": "command", "command": format!("{old} statusline") } });
         assert!(points_elsewhere(&stale_line));
+        // Hooks from 1.0.3 (old exe name, same folder) must be moved too.
+        let renamed = "C:/Users/x/.atoll/bin/crest-bridge.exe";
+        let stale_name = json!({ "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": renamed } ] } ] } });
+        assert!(points_elsewhere(&stale_name));
+        assert!(paths::installed_bridge().ends_with("atoll-bridge.exe"));
+        // ...and installing replaces them instead of adding a second set.
+        let mut both = stale_name.clone();
+        strip_ours(&mut both);
+        add_ours(&mut both);
+        assert_eq!(both["hooks"]["Stop"].as_array().unwrap().len(), 1);
+        assert!(!points_elsewhere(&both));
         // Someone else's hooks are never ours to move.
         let foreign = json!({ "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": "graphify hook" } ] } ] } });
         assert!(!points_elsewhere(&foreign));

@@ -202,6 +202,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "atoll-bridge"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -705,14 +713,6 @@ dependencies = [
  "windows-numerics",
  "windows-sys 0.61.2",
  "winreg",
-]
-
-[[package]]
-name = "crest-bridge"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "ureq",
 ]
 
 [[package]]

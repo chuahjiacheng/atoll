@@ -1,4 +1,4 @@
-//! crest-bridge: the command Claude Code runs for each hook event.
+//! atoll-bridge: the command Claude Code runs for each hook event.
 //!
 //! Flow: Claude Code writes the hook event JSON to our stdin -> we POST it to
 //! the island's listener on 127.0.0.1 (port + token read from the runtime file
@@ -22,12 +22,12 @@ use serde_json::Value;
 const MAX_STRING: usize = 4000;
 
 fn main() {
-    // `crest-bridge statusline` = Claude Code status line command (usage ring).
+    // `atoll-bridge statusline` = Claude Code status line command (usage ring).
     if std::env::args().nth(1).as_deref() == Some("statusline") {
         statusline();
         return;
     }
-    // `crest-bridge ping` = Settings → AI agents → Test connection. Exit code 0
+    // `atoll-bridge ping` = Settings → AI agents → Test connection. Exit code 0
     // means the island answered through the same path the hooks use.
     if std::env::args().nth(1).as_deref() == Some("ping") {
         std::process::exit(match ping() {
@@ -42,7 +42,7 @@ fn main() {
     // Set CREST_DEBUG=1 to see why on stderr (stderr is ignored by Claude Code on exit 0).
     if let Err(why) = run() {
         if std::env::var_os("CREST_DEBUG").is_some() {
-            eprintln!("crest-bridge: {why}");
+            eprintln!("atoll-bridge: {why}");
         }
     }
 }
@@ -124,7 +124,7 @@ fn statusline() {
             .send_string(&payload.to_string());
         if let Err(e) = result {
             if std::env::var_os("CREST_DEBUG").is_some() {
-                eprintln!("crest-bridge statusline: {e}");
+                eprintln!("atoll-bridge statusline: {e}");
             }
         }
     }

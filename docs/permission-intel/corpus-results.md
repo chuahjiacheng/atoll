@@ -68,7 +68,7 @@ Analysis time per command: median 12 µs, p95 42 µs, slowest single run 819 µs
 | H | Bash | python scripts/build.py | caution | caution | runs the script scripts/build.py |
 | H | Bash | pip install -r requirements.txt | caution | caution | talks to a Python package server |
 | R | Bash | npm install --save-exact gsap lenis @fontsource/inter | caution | caution | adds, removes or updates packages (their install scripts run) |
-| R | Bash | cargo build -p crest-bridge | caution | caution | builds or runs this project's Rust code (cargo build) |
+| R | Bash | cargo build -p atoll-bridge | caution | caution | builds or runs this project's Rust code (cargo build) |
 | H | Bash | git pull --rebase | caution | caution | downloads commits from the git server |
 | R | Bash | git push origin main 2>&1 \| tail -5 | caution | caution | uploads commits to the git server |
 | R | Bash | npx --yes vercel@latest deploy --prod --yes | caution | caution | downloads the package vercel@latest if needed and runs it |
