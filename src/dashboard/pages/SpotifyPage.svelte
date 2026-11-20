@@ -148,10 +148,12 @@
       ? "One click. Atoll reads what the Spotify app on this PC is playing, through Windows. No sign-in, no developer app, and nothing leaves your PC."
       : appOpen
         ? "Connected. The island shows and controls the Spotify app on this PC."
-        : "Connected. Open the Spotify app on this PC and it shows up in the island."}
+        : status?.appUnshared
+          ? "Spotify is open but isn't sharing with Windows yet. Press play in Spotify once. If it still doesn't show, turn on “Show desktop overlay when using media keys” in Spotify's Settings → Display, then restart Spotify."
+          : "Connected. Open the Spotify app on this PC and it shows up in the island."}
   >
     <Badge kind={connected ? "connected" : "off"} />
-    {#if connected && !appOpen}<GButton label="Open Spotify" icon="external" iconSize={16} onclick={openApp} />{/if}
+    {#if connected && !appOpen && !status?.appUnshared}<GButton label="Open Spotify" icon="external" iconSize={16} onclick={openApp} />{/if}
     {#if connected}
       <GButton label="Disconnect" onclick={() => connect(false)} />
     {:else}

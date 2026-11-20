@@ -65,6 +65,35 @@ fn spotify_session() -> ::windows::core::Result<Option<Session>> {
     Ok(None)
 }
 
+/// Is a Spotify window open, whether or not Spotify shares its playback with
+/// Windows? Spotify can run without a media session (its "Show desktop
+/// overlay when using media keys" setting off, or nothing played yet since it
+/// started), and the island then explains that instead of "Spotify isn't open".
+fn spotify_window_open() -> bool {
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindow, IsWindowVisible, GW_OWNER};
+    unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> i32 {
+        unsafe {
+            if IsWindowVisible(hwnd) != 0
+                && GetWindow(hwnd, GW_OWNER).is_null()
+                && crate::chatwatch::process_name(hwnd).as_deref().is_some_and(is_spotify_exe)
+            {
+                *(found as *mut bool) = true;
+                return 0; // stop
+            }
+        }
+        1
+    }
+    let mut found = false;
+    unsafe { EnumWindows(Some(each), &mut found as *mut bool as LPARAM) };
+    found
+}
+
+/// Both the installer and the Microsoft Store build run as Spotify.exe.
+fn is_spotify_exe(name: &str) -> bool {
+    name.eq_ignore_ascii_case("spotify.exe")
+}
+
 /// Wake the watcher now (after a command or a settings change).
 pub fn poke() {
     *WAKE.lock().unwrap() = true;
@@ -176,7 +205,7 @@ fn tick(app: &AppHandle, w: &mut Watch) -> Duration {
     };
     if !on {
         *w = Watch::default();
-        crate::spotify::set_app_open(app, false);
+        crate::spotify::set_app_state(app, false, false);
         crate::spotify::publish_player(app, None);
         return Duration::from_secs(2);
     }
@@ -184,17 +213,17 @@ fn tick(app: &AppHandle, w: &mut Watch) -> Duration {
         Ok(Some(s)) => s,
         Ok(None) => {
             *w = Watch::default();
-            crate::spotify::set_app_open(app, false);
+            crate::spotify::set_app_state(app, false, spotify_window_open());
             crate::spotify::publish_player(app, None);
             return Duration::from_secs(2);
         }
         Err(e) => {
             eprintln!("[atoll] Windows media session unavailable: {e}");
-            crate::spotify::set_app_open(app, false);
+            crate::spotify::set_app_state(app, false, spotify_window_open());
             return Duration::from_secs(5);
         }
     };
-    crate::spotify::set_app_open(app, true);
+    crate::spotify::set_app_state(app, true, false);
     let snap = match read(&session) {
         Ok(s) => s,
         Err(_) => return Duration::from_secs(1), // mid track change: look again shortly
@@ -295,6 +324,22 @@ mod tests {
         assert!(is_spotify("Spotify.exe"));
         assert!(is_spotify("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"));
         assert!(!is_spotify("Chrome"));
+    }
+
+    #[test]
+    fn recognises_spotify_process() {
+        assert!(is_spotify_exe("spotify.exe"));
+        assert!(is_spotify_exe("Spotify.exe"));
+        assert!(!is_spotify_exe("spotifywebhelper.exe"));
+        assert!(!is_spotify_exe("chrome.exe"));
+    }
+
+    /// With Spotify open, this must say true, whether or not it is playing:
+    /// cargo test --lib probe_spotify_window -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn probe_spotify_window() {
+        println!("window_open={} session={:?}", spotify_window_open(), spotify_session().map(|s| s.is_some()));
     }
 
     /// Reads the real Spotify app. Open Spotify, then:

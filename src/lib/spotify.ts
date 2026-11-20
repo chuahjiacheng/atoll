@@ -36,6 +36,8 @@ export interface SpotifyStatus {
   connected: boolean;
   /** The Spotify app is open on this PC. */
   appOpen: boolean;
+  /** Spotify is open but isn't sharing its playback with Windows' media controls. */
+  appUnshared: boolean;
   /** An account is linked for device switching (optional). */
   account: boolean;
   hasClientId: boolean;

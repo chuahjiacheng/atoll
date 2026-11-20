@@ -187,6 +187,16 @@
     <GButton label="Connect Spotify" variant="filled" onclick={() => attempt(() => settingsApi.openDashboard("spotify"))} />
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </div>
+{:else if !status.appOpen && status.appUnshared}
+  <div class="empty-state">
+    <Pip mood="idle" {tone} size={64} />
+    <div class="title">Spotify isn't sharing with Windows</div>
+    <div class="hint">
+      Press play in Spotify once. Still nothing? In Spotify, open Settings → Display, turn on “Show desktop overlay when using
+      media keys”, then restart Spotify.
+    </div>
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+  </div>
 {:else if !status.appOpen}
   <div class="empty-state">
     <Pip mood="idle" {tone} size={64} />

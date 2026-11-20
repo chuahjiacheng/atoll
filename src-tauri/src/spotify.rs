@@ -78,6 +78,9 @@ pub struct SpotifyStatus {
     pub connected: bool,
     /// The Spotify app is open on this PC.
     pub app_open: bool,
+    /// A Spotify window is open but Spotify isn't sharing its playback with
+    /// Windows' media controls, so the island can't see or control it.
+    pub app_unshared: bool,
     /// An account is linked for device switching (optional).
     pub account: bool,
     pub has_client_id: bool,
@@ -100,6 +103,7 @@ pub struct SpotifyState {
     /// A linked account (refresh token stored).
     account: AtomicBool,
     app_open: AtomicBool,
+    app_unshared: AtomicBool,
     user: Mutex<Option<String>>,
     /// Latest view of the player, and the one the island last received.
     player: Mutex<Option<PlayerView>>,
@@ -123,6 +127,7 @@ impl Default for SpotifyState {
             pending: Mutex::new(None),
             account: AtomicBool::new(load_refresh().is_some()),
             app_open: AtomicBool::new(false),
+            app_unshared: AtomicBool::new(false),
             user: Mutex::new(None),
             player: Mutex::new(None),
             sent: Mutex::new(None),
@@ -232,6 +237,7 @@ pub fn status(app: &AppHandle) -> SpotifyStatus {
     SpotifyStatus {
         connected,
         app_open: s.app_open.load(Ordering::Relaxed),
+        app_unshared: s.app_unshared.load(Ordering::Relaxed),
         account: s.account.load(Ordering::Relaxed),
         has_client_id: !client_id(app).is_empty(),
         user,
@@ -276,8 +282,13 @@ pub fn publish_player(app: &AppHandle, view: Option<PlayerView>) {
     }
 }
 
-pub fn set_app_open(app: &AppHandle, open: bool) {
-    if app.state::<SpotifyState>().app_open.swap(open, Ordering::Relaxed) != open {
+/// `open`: Spotify's media session is there. `unshared`: no session, but a
+/// Spotify window is open.
+pub fn set_app_state(app: &AppHandle, open: bool, unshared: bool) {
+    let s = app.state::<SpotifyState>();
+    let changed = s.app_open.swap(open, Ordering::Relaxed) != open;
+    let changed = (s.app_unshared.swap(unshared, Ordering::Relaxed) != unshared) || changed;
+    if changed {
         emit_status(app);
     }
 }
