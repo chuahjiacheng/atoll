@@ -209,7 +209,8 @@ export const settingsApi = {
   validateHotkey: (combo: string) => invoke<void>("validate_hotkey", { combo }),
   pauseHotkeys: (paused: boolean) => invoke<void>("pause_hotkeys", { paused }),
   monitors: () => invoke<MonitorInfo[]>("list_monitors"),
-  openDashboard: () => invoke<void>("open_dashboard"),
+  /** Open Settings; with `page`, on that page instead of where it was left. */
+  openDashboard: (page?: "agents" | "spotify" | "calendar") => invoke<void>("open_dashboard", { page: page ?? null }),
   islandVisible: () => invoke<boolean>("get_island_visible"),
   setIslandVisible: (visible: boolean) => invoke<void>("set_island_visible", { visible }),
   autostartEnabled: () => invoke<boolean>("autostart_enabled"),

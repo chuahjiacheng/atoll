@@ -164,6 +164,21 @@
   });
   // ---- permission-intel: end ----
 
+  // A "Connect …" button in the island opens this window on its page
+  // (Spotify, Calendar, AI agents) rather than the page it was left on.
+  const toPage = (id: string | null) => {
+    if (id && id !== "rules" && PAGES.some((p) => p.id === id)) go(id);
+  };
+  onMount(() => {
+    invoke<string | null>("dashboard_take_page").then(toPage).catch(() => {});
+    const un = listen<string>("settings:goto", (e) => {
+      if (e.payload === "rules") return;
+      invoke("dashboard_take_page").catch(() => {});
+      toPage(e.payload);
+    });
+    return () => un.then((f) => f());
+  });
+
   onMount(() => {
     init().catch((e) => (loadError = String(e)));
     const unSystem = watchSystem(() => systemTick++);

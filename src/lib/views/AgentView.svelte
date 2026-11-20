@@ -10,6 +10,8 @@
   import Icon, { type IconName } from "../ui/Icon.svelte";
   import Pip, { type Tone } from "../ui/Pip.svelte";
   import Ring from "../ui/Ring.svelte";
+  import GButton from "../glass/GButton.svelte";
+  import { settingsApi } from "../settings";
 
   let {
     sessions,
@@ -76,6 +78,7 @@
     <Pip mood="idle" {tone} size={64} />
     <div class="title">No agent session yet</div>
     <div class="hint">Start Claude Code in a terminal or the Claude desktop Code tab. Its activity, status and usage appear here.</div>
+    <GButton label="Connect Claude Code" icon="agent" iconSize={16} variant="filled" onclick={() => settingsApi.openDashboard("agents").catch(() => {})} />
   </div>
 {:else}
   <div class="agent clay">

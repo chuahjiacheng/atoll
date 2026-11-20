@@ -151,7 +151,7 @@
     !account
       ? [
           { label: "Playing on this PC", icon: ricon("check", 16), disabled: true },
-          { label: "Switch devices… (link account)", icon: ricon("settings", 16), onSelect: () => settingsApi.openDashboard() },
+          { label: "Switch devices… (link account)", icon: ricon("settings", 16), onSelect: () => settingsApi.openDashboard("spotify") },
         ]
       : devices.length
         ? devices.map((d) => ({
@@ -184,7 +184,7 @@
     <Pip mood="idle" {tone} size={64} />
     <div class="title">Spotify isn't connected</div>
     <div class="hint">Show and control what Spotify plays on this PC. No sign-in needed.</div>
-    <GButton label="Connect Spotify" variant="filled" onclick={() => attempt(() => spotifyApi.connect(true))} />
+    <GButton label="Connect Spotify" variant="filled" onclick={() => attempt(() => settingsApi.openDashboard("spotify"))} />
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </div>
 {:else if !status.appOpen}
@@ -257,7 +257,7 @@
         {#if !account}
           <!-- Spotify ignores volume changes sent through Windows: setting it needs the linked account. -->
           <span class="time label tabular">{volume}%</span>
-          <GButton label="Link account to change" onclick={() => settingsApi.openDashboard()} />
+          <GButton label="Link account to change" onclick={() => settingsApi.openDashboard("spotify")} />
         {:else}
         <div
           class="slider"

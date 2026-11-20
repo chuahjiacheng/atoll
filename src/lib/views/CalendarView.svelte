@@ -25,6 +25,7 @@
     type Timed,
   } from "../calendar";
   import { react } from "../glass/bridge";
+  import { settingsApi } from "../settings";
   import GButton from "../glass/GButton.svelte";
   import Icon from "../ui/Icon.svelte";
   import Pip, { type Tone } from "../ui/Pip.svelte";
@@ -162,9 +163,10 @@
     }
   }
 
+  // Connecting happens on Settings → Calendar (account, calendars to show).
   function connect() {
     error = "";
-    calendarApi.login().catch((e) => (error = String(e)));
+    settingsApi.openDashboard("calendar").catch((e) => (error = String(e)));
   }
 
   function refresh() {
@@ -178,7 +180,7 @@
     <Pip mood="idle" {tone} size={64} />
     <div class="title">Google Calendar isn't connected</div>
     <div class="hint">
-      {status?.signingIn ? "Finish signing in to Google in your browser." : "See today's events and join calls from the island. Connect opens Google in your browser."}
+      {status?.signingIn ? "Finish signing in to Google in your browser." : "See today's events and join calls from the island. Connect opens Settings → Calendar."}
     </div>
     {#if status?.signingIn}
       <GButton label="Cancel" onclick={() => calendarApi.cancelLogin()} />

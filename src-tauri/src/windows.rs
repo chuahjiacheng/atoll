@@ -122,6 +122,23 @@ pub fn open_tab(app: &AppHandle, tab: &str) {
     }
 }
 
+/// The page a "Connect …" button asked Settings to open on. A window that is
+/// still being built takes it when it loads; one already open gets
+/// `settings:goto` (and takes it then, so it is not used twice).
+static PENDING_PAGE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Open Settings on one page (not the page it was last left on).
+pub fn open_dashboard_at(app: &AppHandle, page: &str) {
+    *PENDING_PAGE.lock().unwrap() = Some(page.to_string());
+    open_dashboard(app);
+    let _ = app.emit_to(DASHBOARD, "settings:goto", page);
+}
+
+/// The page Settings was asked to open on, once.
+pub fn take_dashboard_page() -> Option<String> {
+    PENDING_PAGE.lock().unwrap().take()
+}
+
 /// Open the settings dashboard, or bring it to the front if it is open.
 ///
 /// Built on a helper thread: creating a window from code that runs on the

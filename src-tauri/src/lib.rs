@@ -404,9 +404,19 @@ fn list_monitors(app: AppHandle) -> Vec<MonitorInfo> {
     windows::list_monitors(&app)
 }
 
+/// Open Settings, on `page` when given (a "Connect …" button), else where it was left.
 #[tauri::command]
-fn open_dashboard(app: AppHandle) {
-    windows::open_dashboard(&app);
+fn open_dashboard(app: AppHandle, page: Option<String>) {
+    match page {
+        Some(p) => windows::open_dashboard_at(&app, &p),
+        None => windows::open_dashboard(&app),
+    }
+}
+
+/// The page Settings was asked to open on, once (asked when the window loads).
+#[tauri::command]
+fn dashboard_take_page() -> Option<String> {
+    windows::take_dashboard_page()
 }
 
 #[tauri::command]
@@ -1095,6 +1105,7 @@ pub fn run() {
             validate_hotkey,
             list_monitors,
             open_dashboard,
+            dashboard_take_page,
             get_island_visible,
             set_island_visible,
             autostart_enabled,
