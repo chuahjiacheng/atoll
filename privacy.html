@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy – Atoll</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<nav><a href="./">Atoll</a><a href="privacy.html">Privacy policy</a><a href="https://github.com/chuahjiacheng/atoll">Source code</a></nav>
+
+<h1>Privacy policy</h1>
+<p>Last updated: 21 November 2026</p>
+
+<p>Atoll is a desktop app for Windows. It runs on your computer and has no servers of its own, no user accounts, no analytics and no advertising. The developer never receives your data.</p>
+
+<h2>Google Calendar</h2>
+<p>If you choose <strong>Connect Google Calendar</strong>, Atoll asks Google for read-only access to your calendars (the <code>calendar.readonly</code> permission). It uses that access to:</p>
+<ul>
+<li>list your calendars, so you can pick which ones appear in the island;</li>
+<li>read events from about one month before today to two months after, so it can show what's coming up and a month view.</li>
+</ul>
+<p>Atoll never creates, changes or deletes anything in your calendar.</p>
+<p><strong>Where it goes:</strong> calendar data is fetched directly from Google to your PC about every 5 minutes, kept in memory to display it, and not saved to disk or sent anywhere else. Your Google sign-in (refresh token) is stored in Windows Credential Manager on your PC. The short-lived access token is kept only in memory.</p>
+<p><strong>Sharing:</strong> Atoll does not share, sell or transfer Google user data to anyone. It is not used for advertising, and no person reads it.</p>
+<p><strong>Disconnecting:</strong> choose Disconnect in Atoll's Settings → Calendar. Atoll revokes its access with Google and deletes the stored sign-in from your PC. You can also remove access at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+<p>Atoll's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+<h2>Other features</h2>
+<ul>
+<li><strong>Spotify:</strong> if you connect Spotify, Atoll reads what's playing from Spotify to show it in the island. Song lyrics are looked up on <a href="https://lrclib.net">LRCLIB</a> by track name and artist.</li>
+<li><strong>Claude Code:</strong> Atoll reads activity from Claude Code sessions on your PC and, to show your usage, asks Anthropic for your usage figures using your existing Claude sign-in.</li>
+<li><strong>Clipboard, notes, whiteboard and files:</strong> stored only on your PC.</li>
+</ul>
+
+<h2>Children</h2>
+<p>Atoll is not directed at children under 13.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the new version will be posted on this page with a new date.</p>
+
+<h2>Contact</h2>
+<p>Questions or requests: <a href="https://github.com/chuahjiacheng/atoll/issues">open an issue on GitHub</a>.</p>
+</main>
+</body>
+</html>
