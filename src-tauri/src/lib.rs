@@ -250,7 +250,9 @@ fn reply_in_claude(app: AppHandle, session_id: String, text: String) -> Result<(
         busy.push(session_id.clone());
     }
     let is_choice = app.state::<AppState>().sessions.lock().unwrap().is_choice(&session_id, &text);
-    let sent = reply::send_to_claude(&text, is_choice);
+    // Which Code-tab session asked: the Claude app may be showing another one.
+    let title = reply::desktop_session_title(&session_id);
+    let sent = reply::send_to_claude(&text, is_choice, title.as_deref());
     IN_FLIGHT.lock().unwrap().retain(|s| s != &session_id);
     sent?;
     if app.state::<AppState>().sessions.lock().unwrap().answered(&session_id) {

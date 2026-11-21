@@ -31,6 +31,102 @@ try {
   }
   # The first request after Claude starts switches on its accessibility tree,
   # which can take a few seconds to fill in; later requests take ~40 ms.
+  $page = $null
+  for ($i = 0; $i -lt 60 -and -not $page; $i++) {
+    $page = $root.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, 'RootWebArea')))
+    if (-not $page) { Start-Sleep -Milliseconds 100 }
+  }
+  # The Claude app shows one session at a time, and it may not be the one that
+  # asked (you were watching another session, or a chat in the Claude tab,
+  # when you minimised it). Open the asking session first, so the answer can't
+  # land in the wrong place; put back what you were looking at afterwards.
+  $session = "$env:CREST_SESSION".Trim()
+  $backTab = $null
+  $back = $null
+  $Invoke = [System.Windows.Automation.InvokePattern]::Pattern
+  # The app's "Claude" (chats) / "Code" switch at the top.
+  function Tab($name) { Find $CT::RadioButton $name }
+  function TabOn($name) {
+    $t = Tab $name
+    if (-not $t) { return $false }
+    try { return $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { return $false }
+  }
+  function OnTab {
+    foreach ($n in 'Code', 'Claude') { if (TabOn $n) { return $n } }
+    return $null
+  }
+  # The session or chat on screen: its header holds a "<title>, rename session"
+  # button. Only a Code-tab session counts (a chat can share the title).
+  function IsOpen($title) { (TabOn 'Code') -and [bool](Find $CT::Button ($title + ', rename session')) }
+  # The page is named "<title> - Claude Code" (or "<title> - Claude" for a chat).
+  # (The window holds more than one page; the others are unnamed.)
+  function OpenTitle {
+    $pages = $root.FindAll($TS::Descendants, (New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, 'RootWebArea')))
+    foreach ($p in $pages) {
+      $n = $p.Current.Name
+      foreach ($tail in ' - Claude Code', ' - Claude') {
+        if ($n -and $n.EndsWith($tail, [StringComparison]::Ordinal) -and $n.Length -gt $tail.Length) { return $n.Substring(0, $n.Length - $tail.Length) }
+      }
+    }
+    return $null
+  }
+  # A sidebar entry is a button named "<title>", or "<title> <state>" while it
+  # is busy ("... Running"). Exact names first; otherwise the entry with the
+  # shortest tail. Two entries alike = can't tell which: none.
+  function SidebarEntry($title) {
+    $buttons = @($root.FindAll($TS::Descendants, (New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, $CT::Button))))
+    $hits = @($buttons | Where-Object {
+        $n = $_.Current.Name
+        $n -and ($n -ceq $title -or ($n.StartsWith($title + ' ', [StringComparison]::Ordinal) -and $n.Length - $title.Length -le 24)) -and $_.Current.IsEnabled
+      } | Sort-Object { $_.Current.Name.Length })
+    if ($hits.Count -eq 0) { return $null }
+    if ($hits.Count -gt 1 -and $hits[0].Current.Name.Length -eq $hits[1].Current.Name.Length) { return $null }
+    return $hits[0]
+  }
+  # Wait up to $ms for $test to hold.
+  function WaitFor([scriptblock]$test, $ms) {
+    $w = [Diagnostics.Stopwatch]::StartNew()
+    while ($w.ElapsedMilliseconds -lt $ms) { if (& $test) { return $true }; Start-Sleep -Milliseconds 100 }
+    return [bool](& $test)
+  }
+  # Back to the tab and session (or chat) you were looking at.
+  function GoBack {
+    if (-not $backTab) { return }
+    try {
+      if ($backTab -ne 'Code') {
+        $t = Tab $backTab
+        if ($t) { $t.GetCurrentPattern($Invoke).Invoke(); [void](WaitFor { TabOn $backTab } 3000) }
+      }
+      if ($back -and -not ($backTab -eq 'Code' -and $back -ceq $session) -and (OpenTitle) -cne $back) {
+        $b = SidebarEntry $back
+        if ($b) { $b.GetCurrentPattern($Invoke).Invoke() }
+      }
+    } catch {}
+  }
+  if ($session -and $env:CREST_PROBE -eq '1') {
+    $e = SidebarEntry $session
+    Write-Output ('probe:tab=' + (OnTab) + '|open=' + (OpenTitle) + '|isOpen=' + (IsOpen $session) + '|entry=' + $(if ($e) { $e.Current.Name } else { '' }))
+    exit 0
+  }
+  if ($session -and -not (IsOpen $session)) {
+    $backTab = OnTab
+    $back = OpenTitle
+    if (-not (TabOn 'Code')) {
+      $t = Tab 'Code'
+      if (-not $t) { Write-Output 'fail:session:no Code tab'; exit 0 }
+      $t.GetCurrentPattern($Invoke).Invoke()
+      if (-not (WaitFor { TabOn 'Code' } 3000)) { GoBack; Write-Output 'fail:session:Code tab did not open'; exit 0 }
+    }
+    $entry = $null
+    [void](WaitFor { $script:entry = SidebarEntry $session; [bool]$script:entry } 3000)
+    if (-not $entry) { GoBack; Write-Output 'fail:session:not in the sidebar'; exit 0 }
+    $entry.GetCurrentPattern($Invoke).Invoke()
+    if (-not (WaitFor { IsOpen $session } 6000)) {
+      # Something else opened: go back to where you were, answer nothing.
+      GoBack
+      Write-Output 'fail:session:did not open'; exit 0
+    }
+  }
   $edit = $null
   for ($i = 0; $i -lt 60 -and -not $edit; $i++) { $edit = Find $CT::Edit 'Prompt'; if (-not $edit) { Start-Sleep -Milliseconds 100 } }
   if (-not $edit) { Write-Output 'fail:no prompt box'; exit 0 }
@@ -60,6 +156,8 @@ try {
   if ($choice) {
     Hide
     $choice.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 600
+    GoBack
     Write-Output 'ok'; exit 0
   }
   $vp = $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -91,5 +189,7 @@ try {
   $btn.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   # Put back whatever you had half-typed before the reply went out.
   if ($draft) { Start-Sleep -Milliseconds 500; $vp.SetValue($draft) }
+  Start-Sleep -Milliseconds 600
+  GoBack
   Write-Output 'ok'
 } catch { Write-Output ('fail:' + $_.Exception.Message) }

@@ -272,9 +272,82 @@ unsafe fn focus(hwnd: HWND) {
     }
 }
 
+/// The Claude app's data folders: the regular one and the Store (MSIX) build's
+/// private copy of AppData.
+fn claude_app_dirs() -> Vec<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let mut roots: Vec<PathBuf> = Vec::new();
+    if let Some(a) = env("APPDATA") {
+        roots.push(a.join("Claude"));
+    }
+    if let Some(l) = env("LOCALAPPDATA") {
+        if let Ok(rd) = std::fs::read_dir(l.join("Packages")) {
+            for e in rd.flatten() {
+                if e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("claude") {
+                    roots.push(e.path().join("LocalCache").join("Roaming").join("Claude"));
+                }
+            }
+        }
+    }
+    roots
+}
+
+/// The sidebar title of a Code-tab session, from its record in the Claude app
+/// (`claude-code-sessions\<account>\<org>\local_<id>.json`), when the record
+/// belongs to Claude Code session `cli_id`.
+fn title_in_record(json: &str, cli_id: &str) -> Option<String> {
+    // Cheap check first: most records are for other sessions.
+    if !json.contains(cli_id) {
+        return None;
+    }
+    let v: serde_json::Value = serde_json::from_str(json).ok()?;
+    let is = |k: &str| v.get(k).and_then(serde_json::Value::as_str) == Some(cli_id);
+    if !is("cliSessionId") && !is("lastAssistantCliSessionId") {
+        return None;
+    }
+    let title = v.get("title").and_then(serde_json::Value::as_str)?.trim();
+    (!title.is_empty()).then(|| title.to_string())
+}
+
+/// The title the Claude app shows for Claude Code session `cli_id`, if it is a
+/// Code-tab session. The newest matching record wins (the Store build can hold
+/// a stale copy next to the live one).
+pub fn desktop_session_title(cli_id: &str) -> Option<String> {
+    if cli_id.is_empty() {
+        return None;
+    }
+    let mut best: Option<(std::time::SystemTime, String)> = None;
+    for root in claude_app_dirs() {
+        let Ok(accounts) = std::fs::read_dir(root.join("claude-code-sessions")) else { continue };
+        for account in accounts.flatten() {
+            let Ok(orgs) = std::fs::read_dir(account.path()) else { continue };
+            for org in orgs.flatten() {
+                let Ok(files) = std::fs::read_dir(org.path()) else { continue };
+                for f in files.flatten() {
+                    let name = f.file_name().to_string_lossy().to_string();
+                    if !name.starts_with("local_") || !name.ends_with(".json") {
+                        continue;
+                    }
+                    let Ok(text) = std::fs::read_to_string(f.path()) else { continue };
+                    let Some(title) = title_in_record(&text, cli_id) else { continue };
+                    let at = f.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+                    if best.as_ref().is_none_or(|(old, _)| at > *old) {
+                        best = Some((at, title));
+                    }
+                }
+            }
+        }
+    }
+    best.map(|(_, t)| t)
+}
+
 /// Send `text` to the Claude app without focusing it: UI Automation fills its
 /// message box and presses Send, so you stay in whatever app you are using.
-fn send_in_background(hwnd: HWND, text: &str, is_choice: bool) -> Result<(), String> {
+/// `session`: the title of the Code-tab session the reply is for; the script
+/// opens that session first (the app may be showing another one) and puts the
+/// one you were looking at back afterwards.
+fn send_in_background(hwnd: HWND, text: &str, is_choice: bool, session: Option<&str>) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     use std::process::{Command, Stdio};
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -283,6 +356,7 @@ fn send_in_background(hwnd: HWND, text: &str, is_choice: bool) -> Result<(), Str
         .env("CREST_HWND", (hwnd as isize).to_string())
         .env("CREST_TEXT", text)
         .env("CREST_CHOICE", if is_choice { "1" } else { "0" })
+        .env("CREST_SESSION", session.unwrap_or(""))
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .stdin(Stdio::null())
@@ -324,12 +398,24 @@ fn send_in_background(hwnd: HWND, text: &str, is_choice: bool) -> Result<(), Str
 /// or the fallback can't bring it to the front (then nothing is typed anywhere
 /// else). `is_choice`: `text` is one of the question's reply choices, so Claude
 /// shows a button for it (possibly a few seconds late) that we can press.
-pub fn send_to_claude(text: &str, is_choice: bool) -> Result<(), String> {
+/// `session`: the Claude app's title for the session that asked. With several
+/// sessions open, the app shows only one of them; the reply must go to the
+/// session that asked, not the one on screen.
+pub fn send_to_claude(text: &str, is_choice: bool, session: Option<&str>) -> Result<(), String> {
     let hwnd = claude_window().ok_or("The Claude app isn't open. Open it and pick again.")?;
     // The app you were in before you reached for the island (clicking the
     // island makes Crest the foreground app).
     let you = your_app();
-    if send_quietly(hwnd, you, || send_in_background(hwnd, text, is_choice)).is_ok() {
+    let quiet = send_quietly(hwnd, you, || send_in_background(hwnd, text, is_choice, session));
+    if let Err(e) = &quiet {
+        // The asking session couldn't be opened: the app still shows another
+        // session, so typing now would answer the wrong one.
+        if e.starts_with("fail:session") {
+            let name = session.unwrap_or("that session");
+            return Err(format!("Couldn't open \u{201c}{name}\u{201d} in the Claude app. Open it there and pick again."));
+        }
+    }
+    if quiet.is_ok() {
         // Clicking the pill left the keyboard on the island: give it back.
         unsafe {
             let front = GetForegroundWindow();
@@ -394,4 +480,46 @@ pub fn send_to_claude(text: &str, is_choice: bool) -> Result<(), String> {
         }
     });
     rx.recv_timeout(Duration::from_secs(3)).unwrap_or(Ok(()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn title_comes_from_the_matching_record() {
+        let rec = r#"{"sessionId":"local_1","cliSessionId":"aaa-111","title":"Fix the pill","isArchived":false}"#;
+        assert_eq!(title_in_record(rec, "aaa-111").as_deref(), Some("Fix the pill"));
+    }
+
+    #[test]
+    fn other_sessions_records_are_ignored() {
+        let rec = r#"{"cliSessionId":"bbb-222","title":"Other","lastAssistantCliSessionId":"bbb-222"}"#;
+        assert_eq!(title_in_record(rec, "aaa-111"), None);
+        // The id appearing somewhere else in the record is not a match.
+        let rec = r#"{"cliSessionId":"bbb-222","title":"Other","note":"aaa-111"}"#;
+        assert_eq!(title_in_record(rec, "aaa-111"), None);
+    }
+
+    #[test]
+    fn a_resumed_session_matches_on_its_latest_cli_id() {
+        let rec = r#"{"cliSessionId":"old-0","lastAssistantCliSessionId":"aaa-111","title":"Resumed"}"#;
+        assert_eq!(title_in_record(rec, "aaa-111").as_deref(), Some("Resumed"));
+    }
+
+    #[test]
+    fn blank_or_broken_records_give_no_title() {
+        assert_eq!(title_in_record(r#"{"cliSessionId":"aaa-111","title":"  "}"#, "aaa-111"), None);
+        assert_eq!(title_in_record(r#"{"cliSessionId":"aaa-111""#, "aaa-111"), None);
+        assert_eq!(desktop_session_title(""), None);
+    }
+
+    /// Reads the real Claude app data: this test session's own title.
+    #[test]
+    #[ignore]
+    fn finds_a_real_session_title() {
+        let id = std::env::var("CREST_TEST_CLI_ID").expect("set CREST_TEST_CLI_ID");
+        println!("{:?}", desktop_session_title(&id));
+        assert!(desktop_session_title(&id).is_some());
+    }
 }
