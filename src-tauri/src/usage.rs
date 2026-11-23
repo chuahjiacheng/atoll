@@ -326,7 +326,7 @@ async fn access_token(http: &reqwest::Client) -> Result<(String, Login), String>
 }
 
 /// "2025-11-07T20:00:00.123+00:00" (or …Z) → Unix seconds.
-fn parse_time(s: &str) -> Option<u64> {
+pub(crate) fn parse_time(s: &str) -> Option<u64> {
     let (date, rest) = s.split_once('T')?;
     let mut d = date.split('-').map(|p| p.parse::<i64>().ok());
     let (y, m, day) = (d.next()??, d.next()??, d.next()??);

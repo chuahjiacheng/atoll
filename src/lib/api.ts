@@ -161,6 +161,30 @@ export interface Usage {
   signInError?: string | null;
 }
 
+/** A Claude chat (claude.ai / the desktop Chat tab), read from Claude's local cache. */
+export interface Chat {
+  uuid: string;
+  name: string;
+  updatedAt: number;
+  /** Your last message (only when the chat's messages are cached). */
+  ask: string | null;
+  /** Claude's last reply (only when cached). */
+  answer: string | null;
+  answeredAt: number;
+  messageCount: number;
+  /** The chat changed after its messages were cached (reply being written, or not opened yet). */
+  behind: boolean;
+}
+
+export interface ChatsView {
+  /** A claude.ai cache was found on this PC. */
+  available: boolean;
+  /** "free" | "pro" | "max" | "team" | "enterprise" | "" (unknown). */
+  plan: string;
+  /** Newest first. */
+  chats: Chat[];
+}
+
 export type AlertKind = "done" | "attention" | "error" | "usage" | "chatReply";
 
 export interface AlertEvent {
@@ -181,6 +205,9 @@ export const api = {
   /** Send a reply to Claude through the Claude app (types it and presses Enter). */
   replyInClaude: (sessionId: string, text: string) => invoke<void>("reply_in_claude", { sessionId, text }),
   getAgentFeed: () => invoke<AgentFeed>("get_agent_feed"),
+  getChats: () => invoke<ChatsView>("get_chats"),
+  /** Open a chat in the Claude desktop app, or with `web` on claude.ai. */
+  openChat: (uuid: string, web = false) => invoke<void>("open_chat", { uuid, web }),
   quit: () => invoke<void>("quit_app"),
   setHitRect: (r: { x: number; y: number; w: number; h: number }) => invoke<void>("set_hit_rect", r),
   getUsage: () => invoke<Usage>("get_usage"),
@@ -206,3 +233,7 @@ export const onHover = (cb: (inside: boolean) => void): Promise<UnlistenFn> =>
 
 export const onAgentFeed = (cb: (f: AgentFeed) => void): Promise<UnlistenFn> =>
   listen<AgentFeed>("agent-feed", (e) => cb(e.payload));
+
+export const onChats = (cb: (c: ChatsView) => void): Promise<UnlistenFn> =>
+  listen<ChatsView>("chats", (e) => cb(e.payload));
+

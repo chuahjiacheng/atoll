@@ -10,6 +10,7 @@
 //! - `alerts`      chime, toast and island flash
 //! - `usage`       5-hour / weekly limits from the status line (usage ring)
 //! - `chatwatch`   experimental Chat tab "reply finished" watcher
+//! - `chats`       Claude chats (any plan) read from claude.ai's local cache
 //! - `spotify`     Spotify controls, devices (optional account link, PKCE)
 //! - `spotify_local` Spotify on this PC via the Windows media session
 //! - `calendar`    Google Calendar sign-in (PKCE) and upcoming events
@@ -33,6 +34,7 @@ mod board;
 mod calendar;
 mod google_client;
 mod chatwatch;
+mod chats;
 mod clipboard;
 mod crypt;
 mod data;
@@ -469,6 +471,23 @@ fn test_alert(app: AppHandle, kind: String) -> Result<(), String> {
 #[tauri::command]
 fn get_usage(app: AppHandle) -> usage::UsageView {
     usage::current(&app)
+}
+
+#[tauri::command]
+fn get_chats(app: AppHandle) -> chats::ChatsView {
+    chats::current(&app)
+}
+
+#[tauri::command]
+/// Open a Claude chat (the id comes from the chats cache): in the Claude
+/// desktop app (`claude://` link) or, with `web`, on claude.ai.
+fn open_chat(app: AppHandle, uuid: String, web: Option<bool>) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    if uuid.is_empty() || uuid.len() > 64 || !uuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return Err("Not a chat id.".into());
+    }
+    let url = if web.unwrap_or(false) { format!("https://claude.ai/chat/{uuid}") } else { format!("claude://claude.ai/chat/{uuid}") };
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1082,6 +1101,7 @@ pub fn run() {
         .manage(alerts::AlertState::default())
         .manage(usage::UsageState::default())
         .manage(chatwatch::ChatWatchState::default())
+        .manage(chats::ChatsState::default())
         .manage(spotify::SpotifyState::default())
         .manage(calendar::CalendarState::default())
         .manage(lyrics::LyricsCache::default())
@@ -1094,6 +1114,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_sessions,
             get_agent_feed,
+            get_chats,
+            open_chat,
             quit_app,
             dismiss_session,
             clear_session,
@@ -1243,6 +1265,7 @@ pub fn run() {
             backdrop::start(handle.clone());
             alerts::register_toast_identity();
             chatwatch::start(handle.clone());
+            chats::start(handle.clone());
             spotify::start(handle.clone());
             spotify::load_user(handle.clone());
             clipboard::start(handle.clone());

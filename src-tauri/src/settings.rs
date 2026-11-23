@@ -147,11 +147,24 @@ pub struct Claude {
     /// An error or "needs you" message clears itself after this many minutes
     /// (0 = stays until you clear it). "Done" already fades from the pill.
     pub clear_after_min: u32,
+    /// Also show Claude chats (claude.ai / desktop Chat tab) in the Agent tab.
+    pub show_chats: bool,
+    /// What the Agent tab shows: "auto" (Code while it's in use, else chats),
+    /// "code" or "chat".
+    pub chat_source: String,
 }
 
 impl Default for Claude {
     fn default() -> Self {
-        Claude { live_activity: true, ask_permissions: true, sound_on_done: true, popup_on_done: true, clear_after_min: 15 }
+        Claude {
+            live_activity: true,
+            ask_permissions: true,
+            sound_on_done: true,
+            popup_on_done: true,
+            clear_after_min: 15,
+            show_chats: true,
+            chat_source: "auto".into(),
+        }
     }
 }
 
@@ -709,6 +722,9 @@ impl Settings {
             self.usage.ring_window = "fiveHour".into();
         }
         self.claude.clear_after_min = self.claude.clear_after_min.min(24 * 60);
+        if !matches!(self.claude.chat_source.as_str(), "code" | "chat") {
+            self.claude.chat_source = "auto".into();
+        }
         self.focus.sanitize();
         // Google client IDs look like 1234-abc.apps.googleusercontent.com.
         self.calendar.client_id =

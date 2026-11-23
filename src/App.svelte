@@ -10,11 +10,13 @@
   import {
     api,
     onAgentFeed,
+    onChats,
     onHover,
     onPermissions,
     onSessions,
     onUsage,
     type AgentFeed,
+    type ChatsView,
     type Permission,
     type Session,
     type Status,
@@ -61,6 +63,7 @@
   let permissions = $state<Permission[]>([]);
   let usage = $state<Usage | null>(null);
   let feed = $state<AgentFeed>({ log: [], history: [] });
+  let chats = $state<ChatsView | null>(null);
   let player = $state<Player | null>(null);
   let spotify = $state<SpotifyStatus | null>(null);
   let calStatus = $state<CalendarStatus | null>(null);
@@ -472,6 +475,7 @@
     api.getPermissions().then((p) => (permissions = p));
     api.getUsage().then((u) => (usage = u));
     api.getAgentFeed().then((f) => (feed = f));
+    api.getChats().then((c) => (chats = c));
     spotifyApi.status().then((s) => (spotify = s));
     spotifyApi.player().then(async (p) => {
       player = p;
@@ -494,6 +498,7 @@
         sessions = s;
       }),
       onAgentFeed((f) => (feed = f)),
+      onChats((c) => (chats = c)),
       onPermissions((p) => (permissions = p)),
       onPlayer((p) => (player = p)),
       onSpotifyStatus((s) => (spotify = s)),
@@ -954,7 +959,11 @@
               clearKey={keyName(settings!.hotkeys.modules.dismissMessage) === "—" ? "" : keyName(settings!.hotkeys.modules.dismissMessage)}
             />
           {:else if id === "claude"}
-            <AgentView sessions={visibleSessions} onReply={(s, text) => replyToAsk(s, text)} onClear={(id) => api.clearSession(id)} {live} {feed} {usage} window={settings!.usage.ringWindow} {usageOn} now={panelNow} {tone} />
+            <AgentView sessions={visibleSessions} onReply={(s, text) => replyToAsk(s, text)} onClear={(id) => api.clearSession(id)} {live} {feed} {usage} window={settings!.usage.ringWindow} {usageOn} now={panelNow} {tone}
+              chats={settings!.claude.showChats ? chats : null}
+              chatSource={settings!.claude.chatSource}
+              onSource={(v) => settingsApi.update({ claude: { chatSource: v } }).catch((e) => console.error(e))}
+            />
           {:else if id === "spotify"}
             <MusicView {player} status={spotify} {lyrics} lyricsOn={settings!.spotify.lyrics} now={panelNow} {tone} />
           {:else if id === "clipboard"}

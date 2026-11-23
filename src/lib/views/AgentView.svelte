@@ -2,9 +2,12 @@
   Agent tab (design: Island → agent / agent-na).
   Left: each Claude Code session's status, then live activity.
   Right: the usage ring and recent finished tasks.
+  Claude chats (any plan, Free included) show here too: agentSource.ts decides
+  when the tab shows chats instead of Code; the Auto / Code / Chats switch overrides it.
 -->
 <script lang="ts">
-  import { api, type AgentFeed, type Session, type Usage } from "../api";
+  import { api, type AgentFeed, type ChatsView, type Session, type Usage } from "../api";
+  import { pickAgentSource, type ChatSource } from "../agentSource";
   import { ago, clearable, clockTime, summary } from "../format";
   import StatusChip from "../ui/StatusChip.svelte";
   import Icon, { type IconName } from "../ui/Icon.svelte";
@@ -24,7 +27,15 @@
     live = true,
     onClear = (id: string) => api.clearSession(id),
     onReply,
+    chats = null,
+    chatSource = "auto",
+    onSource,
   }: {
+    /** Claude chats from the claude.ai cache (null = not read yet / turned off). */
+    chats?: ChatsView | null;
+    /** The user's Auto / Code / Chats choice. */
+    chatSource?: ChatSource;
+    onSource?: (v: ChatSource) => void;
     /** Answer a session's end-of-turn question (sends the text to Claude). */
     onReply?: (s: Session, text: string) => Promise<void>;
     sessions: Session[];
@@ -66,6 +77,19 @@
     }
   }
 
+  const choice = $derived(pickAgentSource(chatSource, chats, sessions, now));
+  const SOURCES: { id: ChatSource; label: string }[] = [
+    { id: "auto", label: "Auto" },
+    { id: "code", label: "Claude Code" },
+    { id: "chat", label: "Chats" },
+  ];
+  const PLAN_NAME: Record<string, string> = { free: "Free plan", pro: "Pro plan", max: "Max plan", team: "Team plan", enterprise: "Enterprise plan" };
+  // The chat shown on the left: the one picked on the right, else the newest.
+  let pickedChat = $state("");
+  /** A chat that changed this recently without a cached reply is still being answered. */
+  const REPLYING_MS = 3 * 60 * 1000;
+  const chat = $derived(chats?.chats.find((c) => c.uuid === pickedChat) ?? chats?.chats[0] ?? null);
+
   function resets(at: number) {
     const mins = Math.max(0, Math.round((at * 1000 - now) / 60000));
     if (mins >= 60 * 24) return `Resets in ${Math.round(mins / 60 / 24)} d`;
@@ -73,8 +97,101 @@
   }
 </script>
 
-{#if sessions.length === 0 && feed.history.length === 0}
+{#snippet sourceSwitch()}
+  {#if choice.canSwitch && onSource}
+    <div class="sources" role="radiogroup" aria-label="Show in this tab">
+      {#each SOURCES as o (o.id)}
+        <button
+          class="source"
+          class:on={chatSource === o.id}
+          role="radio"
+          aria-checked={chatSource === o.id}
+          title={o.id === "auto" ? "Claude Code while it's in use, otherwise your chats" : undefined}
+          onclick={() => onSource(o.id)}
+        >{o.id === "auto" && chatSource === "auto" ? `Auto · ${choice.show === "code" ? "Code" : "Chats"}` : o.label}</button>
+      {/each}
+    </div>
+  {/if}
+{/snippet}
+
+{#if choice.show === "chat" && chats}
+  <div class="agent clay">
+    <div class="left">
+      {@render sourceSwitch()}
+      {#if chat}
+        <div class="chat-head">
+          <span class="name ellipsis grow" title={chat.name}>{chat.name || "Untitled chat"}</span>
+          <span class="label tabular">{ago(chat.updatedAt, now)}</span>
+          <button class="icon-btn bare small" aria-label="Open this chat on claude.ai" title="Open on claude.ai" onclick={() => api.openChat(chat.uuid, true).catch(() => {})}><Icon name="external" size={16} /></button>
+        </div>
+        {#if chat.behind}
+          <!-- Claude saves a chat once a reply is finished; until then the cache is older. -->
+          <div class="status-row behind">
+            {#if now - chat.updatedAt < REPLYING_MS}
+              <span class="dot-pulse" aria-hidden="true"></span>
+              <span class="label">Claude is replying. It shows here when it's done.</span>
+            {:else if chat.answer}
+              <span class="label">Newer messages in Claude. Open the chat there to update this.</span>
+            {:else}
+              <span class="label">Open this chat in Claude once and its messages show up here.</span>
+            {/if}
+          </div>
+        {/if}
+        {#if chat.ask}
+          <div class="you" class:old={chat.behind} data-lenis-prevent>
+            <div class="label strong">You</div>
+            <p>{chat.ask}</p>
+          </div>
+        {/if}
+        {#if chat.answer}
+          <div class="answer grow-answer" class:old={chat.behind} data-lenis-prevent>
+            <div class="label strong">Claude{chat.answeredAt ? ` · ${ago(chat.answeredAt, now)}` : ""}</div>
+            <p>{chat.answer}</p>
+          </div>
+        {/if}
+      {/if}
+    </div>
+
+    <div class="right">
+      {#if chats.plan === "free" || !usageOn}
+        <div class="card plancard">
+          <Icon name="agent" size={16} />
+          <div class="ringtext">
+            <div class="name">{PLAN_NAME[chats.plan] ?? "Claude"}</div>
+            <div class="label">{chats.plan === "free" ? "Chats from Claude on this PC" : "Usage ring is off"}</div>
+          </div>
+        </div>
+      {:else}
+        <div class="card ringcard">
+          <Ring
+            value={limit ? limit.used / 100 : 0}
+            size={80}
+            stroke={8}
+            dashed={!limit}
+            text={limit ? `${Math.round(limit.used)}%` : "N/A"}
+            label={limit ? `${Math.round(limit.used)} percent of the ${limitName} used` : "Usage not reported yet"}
+          />
+          <div class="ringtext">
+            <div class="name">{limitName}</div>
+            <div class="label">{limit ? (limit.resetsAt === 0 ? "Not started yet" : resets(limit.resetsAt)) : (PLAN_NAME[chats.plan] ?? "Shared with Claude Code")}</div>
+          </div>
+        </div>
+      {/if}
+
+      <div class="label strong heading">Recent chats</div>
+      <div class="list" data-lenis-prevent>
+        {#each chats.chats as c (c.uuid)}
+          <button class="hist chat-item" class:on={chat?.uuid === c.uuid} onclick={() => (pickedChat = c.uuid)}>
+            <div class="ellipsis" title={c.name}>{c.name || "Untitled chat"}</div>
+            <div class="label">{ago(c.updatedAt, now)}</div>
+          </button>
+        {/each}
+      </div>
+    </div>
+  </div>
+{:else if sessions.length === 0 && feed.history.length === 0}
   <div class="empty-state clay">
+    {@render sourceSwitch()}
     <Pip mood="idle" {tone} size={64} />
     <div class="title">No agent session yet</div>
     <div class="hint">Start Claude Code in a terminal or the Claude desktop Code tab. Its activity, status and usage appear here.</div>
@@ -83,6 +200,7 @@
 {:else}
   <div class="agent clay">
     <div class="left">
+      {@render sourceSwitch()}
       {#each asks as s (s.id)}
         <div class="ask">
           <div class="label strong">{s.project || "Claude"} asks</div>
@@ -267,4 +385,40 @@
   .name { font-size: var(--fs-small); font-weight: var(--fw-strong); }
   .hist { padding: var(--sp-4) var(--sp-8); min-width: 0; font-size: var(--fs-small); }
   .hist .status-word .label { font-weight: var(--fw-regular); }
+  /* Auto / Claude Code / Chats */
+  .sources { display: flex; gap: var(--sp-4); flex: none; }
+  .source {
+    height: 24px;
+    padding: 0 var(--sp-12);
+    border-radius: var(--r-pill);
+    font-size: var(--fs-small);
+    color: var(--c-muted);
+    background: transparent;
+    transition: background-color var(--dur-fast), color var(--dur-fast);
+  }
+  .source:hover { background: color-mix(in srgb, var(--c-accent) 12%, transparent); }
+  .source.on { background: var(--c-accent); color: var(--c-accent-ink); font-weight: var(--fw-strong); }
+  .chat-head { display: flex; align-items: center; gap: var(--sp-8); flex: none; min-width: 0; padding: 0 var(--sp-4); }
+  .chat-head .name { font-weight: var(--fw-strong); font-size: var(--fs-body); }
+  .you {
+    flex: none;
+    max-height: calc(var(--size-row) * 1.5);
+    overflow-y: auto;
+    padding: var(--sp-8) var(--sp-16);
+    border-radius: var(--r-control);
+    background: var(--c-surface-card);
+    font-size: var(--fs-small);
+  }
+  .you p { margin: var(--sp-4) 0 0; white-space: pre-wrap; user-select: text; }
+  .answer.grow-answer { flex: 1 1 auto; max-height: none; min-height: 0; }
+  .old { opacity: 0.55; }
+  .status-row.behind { height: auto; min-height: var(--size-control); padding: var(--sp-8) var(--sp-16); }
+  .dot-pulse { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--clay); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+  @media (prefers-reduced-motion: reduce) { .dot-pulse { animation: none; } }
+  .plancard { display: flex; gap: var(--sp-12); align-items: center; flex: none; color: var(--clay); }
+  .plancard .ringtext { color: var(--c-text); }
+  .chat-item { display: block; width: 100%; text-align: left; border-radius: var(--r-control); }
+  .chat-item:hover { background: color-mix(in srgb, var(--clay) 10%, transparent); }
+  .chat-item.on { box-shadow: inset var(--focus-width) 0 0 var(--clay); }
 </style>

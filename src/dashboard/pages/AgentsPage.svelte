@@ -15,6 +15,7 @@
   import Row from "../ui/Row.svelte";
   import SwitchRow from "../ui/SwitchRow.svelte";
   import SelectRow from "../ui/SelectRow.svelte";
+  import SegRow from "../ui/SegRow.svelte";
   import SliderRow from "../ui/SliderRow.svelte";
   import Badge from "../ui/Badge.svelte";
   import CountUp from "../ui/CountUp.svelte";
@@ -167,6 +168,31 @@
     disabled={!ok}
     checked={s.modules.usageRing}
     onchange={(v) => change("modules.usageRing", v)}
+  />
+</Section>
+
+<Section
+  title="Claude chats"
+  desc="Your claude.ai chats (Chat tab, any plan, Free included) in the Agent tab. Atoll reads the chat list and the chats you opened from Claude's own cache on this PC. Nothing is sent anywhere."
+>
+  <SwitchRow
+    label="Show Claude chats"
+    help="Free plans show chats only. On Pro and up, the Agent tab switches between Claude Code and your chats."
+    checked={s.claude.showChats}
+    onchange={(v) => change("claude.showChats", v)}
+  />
+  <SegRow
+    label="Agent tab shows"
+    help="Auto shows Claude Code while it's in use, otherwise your chats. You can also switch in the Agent tab."
+    disabled={!s.claude.showChats}
+    items={[
+      { id: "auto", label: "Auto" },
+      { id: "code", label: "Claude Code" },
+      { id: "chat", label: "Chats" },
+    ]}
+    value={s.claude.chatSource}
+    wide
+    onchange={(v) => change("claude.chatSource", v)}
   />
 </Section>
 

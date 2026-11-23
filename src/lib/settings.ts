@@ -157,7 +157,17 @@ export interface Settings {
   search: { seeded: boolean };
   // ---- search-clipboard: end ----
   /** clearAfterMin: an error or "needs you" clears itself after this many minutes (0 = never). */
-  claude: { liveActivity: boolean; askPermissions: boolean; soundOnDone: boolean; popupOnDone: boolean; clearAfterMin: number };
+  claude: {
+    liveActivity: boolean;
+    askPermissions: boolean;
+    soundOnDone: boolean;
+    popupOnDone: boolean;
+    clearAfterMin: number;
+    /** Also show Claude chats in the Agent tab. */
+    showChats: boolean;
+    /** What the Agent tab shows: Code while it is in use (auto), or always one. */
+    chatSource: "auto" | "code" | "chat";
+  };
   whiteboard: { autoAddCopies: boolean; clickPaste: boolean };
   mascot: { tone: "peri" | "mint" | "peach" | "lilac"; reactMusic: boolean; reactPokes: boolean };
   focus: FocusSettings;
