@@ -21,6 +21,7 @@
     { key: "module:dismissMessage", label: "Clear the island's message", def: "Ctrl+Alt+KeyD" },
     { key: "module:focus", label: "Start or pause the focus timer", def: "Ctrl+Alt+KeyF" },
     { key: "module:palette", label: "Search everything", def: "Ctrl+Alt+KeyK" }, // search-clipboard
+    { key: "module:ask", label: "Open Ask", def: "Ctrl+Alt+KeyA" }, // ask-assistant
   ];
 
   const valueOf = (key: string) =>

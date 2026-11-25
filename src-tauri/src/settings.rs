@@ -35,7 +35,31 @@ pub struct Settings {
     // ---- search-clipboard: begin ----
     pub search: SearchSettings,
     // ---- search-clipboard: end ----
+    // ---- ask-assistant: begin ----
+    pub ask: AskSettings,
+    // ---- ask-assistant: end ----
 }
+
+// ---- ask-assistant: begin ----
+/// Ask, the AI assistant tab (src-tauri/src/ask.rs). The API key is NOT
+/// stored here; it lives in Windows Credential Manager.
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct AskSettings {
+    /// Gemini model id ("gemini-flash-latest" follows Google's newest Flash).
+    pub model: String,
+    /// Keep the chat on disk between restarts.
+    pub keep_history: bool,
+    /// One-time defaults (the Ask hotkey) have been added.
+    pub seeded: bool,
+}
+
+impl Default for AskSettings {
+    fn default() -> Self {
+        AskSettings { model: crate::ask::DEFAULT_MODEL.into(), keep_history: true, seeded: false }
+    }
+}
+// ---- ask-assistant: end ----
 
 // ---- search-clipboard: begin ----
 /// Universal search and the command palette (src-tauri/src/search).
@@ -169,7 +193,7 @@ impl Default for Claude {
 }
 
 pub fn default_module_order() -> Vec<String> {
-    ["claude", "spotify", "calendar", "clipboard", "whiteboard", "fileTray", "note", "focus", "mascot"].iter().map(|s| s.to_string()).collect()
+    ["claude", "ask", "spotify", "calendar", "clipboard", "whiteboard", "fileTray", "note", "focus", "mascot"].iter().map(|s| s.to_string()).collect()
 }
 
 /// Clipboard history (module switch: `modules.clipboard`).
@@ -510,6 +534,7 @@ pub struct Modules {
     pub calendar: bool,
     pub mascot: bool,
     pub screen_question: bool,
+    pub ask: bool, // ask-assistant
 }
 
 /// Global hotkeys as strings like "Ctrl+Alt+Space" (key part = KeyboardEvent.code).
@@ -538,6 +563,7 @@ impl Default for Settings {
             spotify: Spotify::default(),
             clipboard: ClipboardSettings::default(),
             search: SearchSettings::default(), // search-clipboard
+            ask: AskSettings::default(), // ask-assistant
             whiteboard: Whiteboard::default(),
             mascot: Mascot::default(),
             claude: Claude::default(),
@@ -599,6 +625,7 @@ impl Default for Modules {
             calendar: true,
             mascot: true,
             screen_question: true,
+            ask: true, // ask-assistant
         }
     }
 }
@@ -730,6 +757,7 @@ impl Settings {
         self.calendar.client_id =
             self.calendar.client_id.trim().chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')).take(200).collect();
         self.calendar.days_ahead = self.calendar.days_ahead.clamp(1, 14);
+        self.ask.model = crate::ask::clean_model(&self.ask.model); // ask-assistant
         self.calendar.pill_minutes = self.calendar.pill_minutes.min(60);
         self.calendar.shown.retain(|k, _| !k.is_empty() && k.len() <= 300);
         self.version = CURRENT_VERSION;
@@ -805,6 +833,7 @@ pub fn load() -> Settings {
         }
     }
     crate::search::seed_settings(&mut s); // search-clipboard
+    crate::ask::seed_settings(&mut s); // ask-assistant
     s.sanitize();
     s
 }

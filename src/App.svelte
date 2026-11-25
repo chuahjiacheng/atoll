@@ -54,6 +54,7 @@
   import BoardView from "./lib/BoardView.svelte";
   import TrayView from "./lib/TrayView.svelte";
   import NoteView from "./lib/NoteView.svelte";
+  import AskView from "./lib/views/AskView.svelte"; // ask-assistant
   import CalendarView from "./lib/views/CalendarView.svelte";
   import { calendarApi, onAgenda, onCalendarStatus, soonEvent, timed, untilText, type Agenda, type CalendarStatus } from "./lib/calendar";
 
@@ -110,6 +111,7 @@
   let trayView = $state<ReturnType<typeof TrayView>>();
   let clipboardView = $state<ReturnType<typeof ClipboardView>>();
   let noteView = $state<ReturnType<typeof NoteView>>();
+  let askView = $state<ReturnType<typeof AskView>>(); // ask-assistant
   let permPeek = $state<ReturnType<typeof PermissionPeek>>();
 
   // ---------- modules ----------
@@ -311,6 +313,7 @@
     whiteboard: { label: "Board", icon: "whiteboard" },
     fileTray: { label: "Files", icon: "folder" },
     note: { label: "Note", icon: "note" },
+    ask: { label: "Ask", icon: "sparkle" }, // ask-assistant
     calendar: { label: "Calendar", icon: "calendar" },
     focus: { label: "Focus", icon: "focus" },
   };
@@ -380,6 +383,7 @@
     openPanel(t);
     await tick();
     if (t === "note") noteView?.focus();
+    if (t === "ask") askView?.focus(); // ask-assistant
     if (t === "clipboard") clipboardView?.focusSearch();
   }
 
@@ -974,6 +978,8 @@
             <TrayView bind:this={trayView} />
           {:else if id === "note"}
             <NoteView bind:this={noteView} />
+          {:else if id === "ask"}
+            <AskView bind:this={askView} {tone} /><!-- ask-assistant -->
           {:else if id === "calendar"}
             <CalendarView
               status={calStatus}

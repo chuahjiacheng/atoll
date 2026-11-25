@@ -69,9 +69,14 @@
     search: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L20 20",
     pin: "M9 3h6l-1 6 4 4H6l4-4zM12 13v8",
     lyrics: "M4 6h10M4 10h10M4 14h7M17 18V8l3-1M17 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z",
+    // ---- ask-assistant: begin ----
+    sparkle: "M11 4l1.8 5.2L18 11l-5.2 1.8L11 18l-1.8-5.2L4 11l5.2-1.8zM18.5 3v4M16.5 5h4",
+    stop: "M7 7h10v10H7z",
+    copy: "M9 9h11v11H9zM5 15H4V4h11v1",
+    // ---- ask-assistant: end ----
   } as const;
   export type IconName = keyof typeof ICONS;
-  const FILLED = new Set<IconName>(["prev", "next", "play", "pause", "cursor", "dot"]);
+  const FILLED = new Set<IconName>(["prev", "next", "play", "pause", "cursor", "dot", "stop"]);
 </script>
 
 <script lang="ts">

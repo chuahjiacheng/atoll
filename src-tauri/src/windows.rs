@@ -110,12 +110,12 @@ pub fn toggle_island_expanded(app: &AppHandle) {
 }
 
 /// Module hotkey: open the island on one tab (pressing it again closes it).
-/// Clipboard and note also take keyboard focus so you can type right away.
+/// Clipboard, note and Ask also take keyboard focus so you can type right away.
 pub fn open_tab(app: &AppHandle, tab: &str) {
     crate::paste::remember_foreground();
     set_island_visible(app, true);
     let _ = app.emit_to(ISLAND, "open-tab", tab);
-    if matches!(tab, "note" | "clipboard") {
+    if matches!(tab, "note" | "clipboard" | "ask") {
         if let Some(win) = app.get_webview_window(ISLAND) {
             let _ = win.set_focus();
         }

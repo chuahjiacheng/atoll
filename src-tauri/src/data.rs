@@ -58,7 +58,7 @@ pub async fn import_settings(app: &AppHandle) -> Result<bool, String> {
 }
 
 /// Settings back to defaults; clipboard history, whiteboard, file tray list,
-/// note, focus history and the Spotify sign-in removed. Claude Code hooks are
+/// note, focus history, the Spotify sign-in and the Ask chat and key removed. Claude Code hooks are
 /// left alone (remove them in AI agents) and your own files are never touched.
 pub fn clear_all_data(app: &AppHandle) -> Result<(), String> {
     crate::commit_settings(app, Settings::default());
@@ -69,6 +69,7 @@ pub fn clear_all_data(app: &AppHandle) -> Result<(), String> {
     crate::tray::clear(app);
     crate::tray::note_set(app, "")?;
     crate::spotify::unlink_account(app);
+    crate::ask::clear_everything(app); // ask-assistant
     Ok(())
 }
 

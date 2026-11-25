@@ -21,6 +21,7 @@ export const MODULES: ModuleInfo[] = [
     ready: true,
     hotkeyAction: "Open the island on your sessions",
   },
+  { key: "ask", name: "Ask", description: "Ask Gemini anything from the island. Replies stream in, with code you can copy.", milestone: 4, ready: true, hotkeyAction: "Open Ask" }, // ask-assistant
   { key: "alerts", name: "Alerts", description: "Chime, colour flash and Windows notification when a session finishes or needs you.", milestone: 2, ready: true },
   { key: "usageRing", name: "Usage ring", description: "Your 5-hour and weekly Claude limits, read from Claude Code's status line.", milestone: 2, ready: true },
   { key: "chatWatcher", name: "Chat tab watcher", description: "Experimental: alert when a reply finishes in the Claude desktop Chat tab.", milestone: 2, ready: true },

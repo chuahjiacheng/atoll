@@ -28,6 +28,7 @@
 //! - `liquid`      refracting liquid glass under the island (screen capture + shader)
 
 mod alerts;
+mod ask; // ask-assistant
 mod backdrop;
 mod liquid;
 mod board;
@@ -178,6 +179,9 @@ pub(crate) fn commit_settings(app: &AppHandle, next: Settings) {
     }
     if prev.focus != next.focus || prev.modules.focus != next.modules.focus {
         focus::settings_changed(app);
+    }
+    if prev.ask != next.ask {
+        ask::settings_changed(app); // ask-assistant
     }
     if next.modules.claude && !prev.modules.claude {
         tauri::async_runtime::spawn_blocking(hooks::install_if_missing);
@@ -370,6 +374,11 @@ fn reset_settings(app: AppHandle, section: String) -> Result<Settings, String> {
             next.alerts.usage_threshold = threshold;
         }
         "mascot" => next.mascot = defaults.mascot,
+        // ask-assistant: model and history choice (the key stays).
+        "ask" => {
+            next.ask.model = defaults.ask.model;
+            next.ask.keep_history = defaults.ask.keep_history;
+        }
         // The focus page also sets the end-of-session sound.
         "focus" => {
             next.focus = defaults.focus;
@@ -494,6 +503,48 @@ fn open_chat(app: AppHandle, uuid: String, web: Option<bool>) -> Result<(), Stri
 fn get_chatwatch_status(app: AppHandle) -> chatwatch::ChatWatchStatus {
     chatwatch::status(&app)
 }
+
+// ---- ask-assistant: begin ----
+#[tauri::command]
+fn ask_get(app: AppHandle) -> ask::AskView {
+    ask::view(&app)
+}
+
+#[tauri::command]
+fn ask_send(app: AppHandle, text: String) -> Result<(), String> {
+    ask::send(&app, text)
+}
+
+#[tauri::command]
+fn ask_stop(app: AppHandle) {
+    ask::stop(&app);
+}
+
+#[tauri::command]
+fn ask_clear(app: AppHandle) {
+    ask::clear(&app);
+}
+
+#[tauri::command]
+fn ask_key_status() -> ask::KeyStatus {
+    ask::key_status()
+}
+
+#[tauri::command]
+async fn ask_set_key(app: AppHandle, key: String) -> Result<Vec<String>, String> {
+    ask::set_key(&app, &key).await
+}
+
+#[tauri::command]
+fn ask_forget_key(app: AppHandle) {
+    ask::forget_key(&app);
+}
+
+#[tauri::command]
+async fn ask_models() -> Result<Vec<String>, String> {
+    ask::models().await
+}
+// ---- ask-assistant: end ----
 
 #[tauri::command]
 fn calendar_status(app: AppHandle) -> calendar::CalendarStatus {
@@ -1104,6 +1155,7 @@ pub fn run() {
         .manage(chats::ChatsState::default())
         .manage(spotify::SpotifyState::default())
         .manage(calendar::CalendarState::default())
+        .manage(ask::AskState::default()) // ask-assistant
         .manage(lyrics::LyricsCache::default())
         .manage(clipboard::ClipboardState::default())
         .manage(search::SearchState::default()) // search-clipboard
@@ -1235,6 +1287,16 @@ pub fn run() {
             hooks_status,
             install_hooks,
             uninstall_hooks,
+            // ---- ask-assistant: begin ----
+            ask_get,
+            ask_send,
+            ask_stop,
+            ask_clear,
+            ask_key_status,
+            ask_set_key,
+            ask_forget_key,
+            ask_models,
+            // ---- ask-assistant: end ----
         ])
         .on_window_event(|window, event| {
             // Closing the dashboard ends any "preview expanded" on the island.

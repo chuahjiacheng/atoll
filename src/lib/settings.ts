@@ -59,6 +59,7 @@ export interface Modules {
   calendar: boolean;
   mascot: boolean;
   screenQuestion: boolean;
+  ask: boolean; // ask-assistant
 }
 
 export type ModuleKey = keyof Modules;
@@ -172,6 +173,10 @@ export interface Settings {
   mascot: { tone: "peri" | "mint" | "peach" | "lilac"; reactMusic: boolean; reactPokes: boolean };
   focus: FocusSettings;
   calendar: CalendarSettings;
+  // ---- ask-assistant: begin ----
+  /** Ask, the AI assistant tab (the API key lives in Windows Credential Manager). */
+  ask: { model: string; keepHistory: boolean; seeded: boolean };
+  // ---- ask-assistant: end ----
   /** Tab order of the expanded island (module keys). */
   moduleOrder: string[];
 }
@@ -189,6 +194,7 @@ export type ResetSection =
   | "alerts"
   | "hotkeys"
   | "mascot"
+  | "ask" // ask-assistant
   | "all";
 
 export interface ClaudeStatus {
@@ -220,7 +226,7 @@ export const settingsApi = {
   pauseHotkeys: (paused: boolean) => invoke<void>("pause_hotkeys", { paused }),
   monitors: () => invoke<MonitorInfo[]>("list_monitors"),
   /** Open Settings; with `page`, on that page instead of where it was left. */
-  openDashboard: (page?: "agents" | "spotify" | "calendar") => invoke<void>("open_dashboard", { page: page ?? null }),
+  openDashboard: (page?: "agents" | "spotify" | "calendar" | "ask") => invoke<void>("open_dashboard", { page: page ?? null }),
   islandVisible: () => invoke<boolean>("get_island_visible"),
   setIslandVisible: (visible: boolean) => invoke<void>("set_island_visible", { visible }),
   autostartEnabled: () => invoke<boolean>("autostart_enabled"),
