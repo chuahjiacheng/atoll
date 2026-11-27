@@ -47,6 +47,8 @@ mod media;
 mod paste;
 mod paths;
 mod permissions;
+mod presets; // settings presets
+mod routines; // presets switched by time or screens
 mod reply;
 mod rules; // permission-intel: permission rules (dry run, opt-in auto-allow, decision log)
 mod server;
@@ -1289,6 +1291,17 @@ pub fn run() {
             export_settings,
             import_settings,
             clear_all_data,
+            presets::list_presets,
+            presets::save_preset,
+            presets::overwrite_preset,
+            presets::apply_preset,
+            presets::rename_preset,
+            presets::delete_preset,
+            routines::list_routines,
+            routines::save_routine,
+            routines::delete_routine,
+            routines::set_routine_options,
+            routines::undo_routine_switch,
             test_connection,
             claude_status,
             open_folder,
@@ -1369,6 +1382,7 @@ pub fn run() {
             spotify::load_user(handle.clone());
             clipboard::start(handle.clone());
             focus::start(handle.clone());
+            routines::start(handle.clone());
             calendar::start(handle.clone());
             search::start(handle.clone()); // search-clipboard
             system::start_fullscreen_watch(handle.clone());
