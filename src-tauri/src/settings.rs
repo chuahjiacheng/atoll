@@ -529,11 +529,30 @@ pub struct Mascot {
     pub tone: String,
     pub react_music: bool,
     pub react_pokes: bool,
+    /// "none" | "headphones" | "beanie" | "glasses" | "bow" | "party"
+    pub outfit: String,
+    /// Pip wears headphones while music plays (over its outfit).
+    pub headphones_with_music: bool,
+    /// Pip falls asleep after the island has been quiet this many minutes (0 = never).
+    pub nap_after: u32,
+    /// Pip blinks now and then.
+    pub blink: bool,
+    /// Pip hops when it turns happy (e.g. Claude finished).
+    pub celebrate: bool,
 }
 
 impl Default for Mascot {
     fn default() -> Self {
-        Mascot { tone: "peri".into(), react_music: true, react_pokes: true }
+        Mascot {
+            tone: "peri".into(),
+            react_music: true,
+            react_pokes: true,
+            outfit: "none".into(),
+            headphones_with_music: true,
+            nap_after: 10,
+            blink: true,
+            celebrate: true,
+        }
     }
 }
 
@@ -731,6 +750,12 @@ impl Settings {
         }
         if !["peri", "mint", "peach", "lilac"].contains(&self.mascot.tone.as_str()) {
             self.mascot.tone = "peri".into();
+        }
+        if !["none", "headphones", "beanie", "glasses", "bow", "party"].contains(&self.mascot.outfit.as_str()) {
+            self.mascot.outfit = "none".into();
+        }
+        if ![0, 5, 10, 30].contains(&self.mascot.nap_after) {
+            self.mascot.nap_after = 10;
         }
         let known = default_module_order();
         self.module_order.retain(|m| known.contains(m));
@@ -937,6 +962,24 @@ mod tests {
         assert!(next.appearance.busy.custom_on);
         assert_eq!(next.appearance.done.preset, "green"); // untouched
         assert_eq!(next.hotkeys.toggle_island, "Ctrl+Alt+Space");
+    }
+
+    #[test]
+    fn mascot_choices_fall_back_and_old_files_get_defaults() {
+        let s = Settings::default()
+            .merged(&json!({ "mascot": { "outfit": "tuxedo", "napAfter": 7 } }))
+            .unwrap();
+        assert_eq!((s.mascot.outfit.as_str(), s.mascot.nap_after), ("none", 10));
+        let s = Settings::default()
+            .merged(&json!({ "mascot": { "outfit": "party", "napAfter": 0, "blink": false } }))
+            .unwrap();
+        assert_eq!((s.mascot.outfit.as_str(), s.mascot.nap_after, s.mascot.blink), ("party", 0, false));
+        assert!(s.mascot.celebrate && s.mascot.headphones_with_music);
+        // A settings file from before outfits keeps its colour and gains the new defaults.
+        let old: Settings = serde_json::from_value(json!({ "mascot": { "tone": "mint", "reactMusic": false, "reactPokes": true } })).unwrap();
+        assert_eq!(old.mascot.tone, "mint");
+        assert!(!old.mascot.react_music);
+        assert_eq!((old.mascot.outfit.as_str(), old.mascot.nap_after), ("none", 10));
     }
 
     #[test]

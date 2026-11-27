@@ -29,6 +29,7 @@
   import AlertsPage from "./pages/AlertsPage.svelte";
   import HotkeysPage from "./pages/HotkeysPage.svelte";
   import MascotPage from "./pages/MascotPage.svelte";
+  import { copyPipLook } from "../lib/pipLook.svelte"; // mascot
   import PrivacyPage from "./pages/PrivacyPage.svelte";
   import AboutPage from "./pages/AboutPage.svelte";
   // ---- permission-intel: begin ----
@@ -218,6 +219,13 @@
   $effect(() => {
     if (store.settings && navEl && markEl) placeMark(false);
   });
+
+  // ---- mascot: begin ---- every Pip in this window wears the chosen outfit
+  $effect(() => {
+    const m = store.settings?.mascot;
+    if (m) copyPipLook({ outfit: m.outfit, headphonesWithMusic: m.headphonesWithMusic, blink: m.blink, celebrate: m.celebrate });
+  });
+  // ---- mascot: end ----
 </script>
 
 <div class="app">

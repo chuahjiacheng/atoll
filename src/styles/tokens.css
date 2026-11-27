@@ -272,6 +272,18 @@
   --pip-blush: #ff9db0;
   --pip-shine: rgba(255, 255, 255, 0.45);
   --pip-extra: #b8c4ff;
+  /* ---- mascot: begin ---- Pip's outfits (same in both themes) */
+  --pip-gear: #5a6282;
+  --pip-gear-edge: #2f3448;
+  --pip-knit: #f0787c;
+  --pip-knit-edge: #c4575b;
+  --pip-knit-pom: #fff4ec;
+  --pip-bow: #ff86ad;
+  --pip-bow-edge: #d85d88;
+  --pip-party: #ffd36e;
+  --pip-party-edge: #e0a93a;
+  --pip-glint: rgba(255, 255, 255, 0.7);
+  /* ---- mascot: end ---- */
 
   /* ---------- island colours (dark) ---------- */
   --c-ink: #f4f4f7;

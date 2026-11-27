@@ -57,6 +57,8 @@
   import AskView from "./lib/views/AskView.svelte"; // ask-assistant
   import { askApi, onAsk, onAskDelta, type AskView as AskState } from "./lib/ask"; // ask-assistant
   import CalendarView from "./lib/views/CalendarView.svelte";
+  import { copyPipLook, pipLook } from "./lib/pipLook.svelte"; // mascot
+  import { napDelay } from "./lib/pip"; // mascot
   import { calendarApi, onAgenda, onCalendarStatus, soonEvent, timed, untilText, type Agenda, type CalendarStatus } from "./lib/calendar";
 
   // ---------- data ----------
@@ -347,6 +349,7 @@
     measurer.clear();
     // Settings → Mascot → Show Pip off hides Pip everywhere in the island (app.css).
     document.documentElement.dataset.mascot = s.modules.mascot ? "on" : "off";
+    copyPipLook(s.mascot); // mascot
   }
 
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
@@ -622,6 +625,23 @@
     const id = setInterval(() => (now = Date.now()), tickMs);
     return () => clearInterval(id);
   });
+
+  // ---- mascot: begin ----
+  // Pip wears headphones while music plays (if Settings → Mascot says so).
+  $effect(() => {
+    pipLook.music = playing;
+  });
+  // Pip naps once the pill has shown nothing but Pip for Settings → Mascot →
+  // Nap when quiet. The clock above doesn't tick while idle, so one timer.
+  let napping = $state(false);
+  $effect(() => {
+    napping = false;
+    const wait = napDelay(mode === "pill" && pillKind === "idle", settings?.mascot.napAfter ?? 0);
+    if (wait === null) return;
+    const id = setTimeout(() => (napping = true), wait);
+    return () => clearTimeout(id);
+  });
+  // ---- mascot: end ----
 
   // The click-through area follows the island's shape natively (Shell.svelte
   // sends each move to shape.rs), so nothing is reported from here.
@@ -923,7 +943,7 @@
             onclick={() => openPanel(chosenTab)}
           />
         {:else}
-          <Pill kind="idle" {tone} bob={playing && settings!.mascot.reactMusic} width={pillW} label={pillLabel} onclick={() => openPanel(chosenTab)} />
+          <Pill kind="idle" {tone} mood={napping ? "sleepy" : "idle"} bob={playing && settings!.mascot.reactMusic} width={pillW} label={pillLabel} onclick={() => openPanel(chosenTab)} />
         {/if}
         {/key}
       {/snippet}

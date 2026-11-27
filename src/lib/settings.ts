@@ -170,7 +170,19 @@ export interface Settings {
     chatSource: "auto" | "code" | "chat";
   };
   whiteboard: { autoAddCopies: boolean; clickPaste: boolean };
-  mascot: { tone: "peri" | "mint" | "peach" | "lilac"; reactMusic: boolean; reactPokes: boolean };
+  mascot: {
+    tone: "peri" | "mint" | "peach" | "lilac";
+    reactMusic: boolean;
+    reactPokes: boolean;
+    outfit: "none" | "headphones" | "beanie" | "glasses" | "bow" | "party";
+    /** Headphones over the outfit while music plays. */
+    headphonesWithMusic: boolean;
+    /** Minutes of a quiet island before Pip naps (0 = never). */
+    napAfter: number;
+    blink: boolean;
+    /** Hop when turning happy (Claude finished). */
+    celebrate: boolean;
+  };
   focus: FocusSettings;
   calendar: CalendarSettings;
   // ---- ask-assistant: begin ----
