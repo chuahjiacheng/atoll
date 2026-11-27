@@ -235,7 +235,7 @@ pub fn register_toast_identity() {
     }
 }
 
-fn toast(title: &str, body: &str) {
+pub(crate) fn toast(title: &str, body: &str) {
     use tauri_winrt_notification::{Duration as ToastDuration, Toast};
     let result = Toast::new(AUMID)
         .title(title)

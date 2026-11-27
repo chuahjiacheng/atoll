@@ -31,6 +31,7 @@
   import MascotPage from "./pages/MascotPage.svelte";
   import { copyPipLook } from "../lib/pipLook.svelte"; // mascot
   import PrivacyPage from "./pages/PrivacyPage.svelte";
+  import PresetsPage from "./pages/PresetsPage.svelte";
   import AboutPage from "./pages/AboutPage.svelte";
   // ---- permission-intel: begin ----
   import RulesPage from "./pages/RulesPage.svelte";
@@ -41,6 +42,7 @@
   type Page = { id: string; title: string; icon: IconName; desc: string; reset?: ResetSection };
   const PAGES: Page[] = [
     { id: "general", title: "General", icon: "settings", desc: "Startup, language and where the island sits on screen.", reset: "general" },
+    { id: "presets", title: "Presets", icon: "copy", desc: "Save your settings under a name and switch between them whenever you like. Kept on this PC." },
     { id: "appearance", title: "Appearance", icon: "palette", desc: "Size, shape, colours and motion of the island. Changes show in the preview straight away.", reset: "appearance" },
     { id: "modules", title: "Modules", icon: "grid", desc: "Turn modules on or off and set their tab order in the expanded island.", reset: "modules" },
     { id: "agents", title: "AI agents", icon: "agent", desc: "Connect Claude Code and choose what the island shows.", reset: "agents" },
@@ -279,6 +281,7 @@
             {:else if page === "alerts"}<AlertsPage {s} />
             {:else if page === "hotkeys"}<HotkeysPage {s} />
             {:else if page === "mascot"}<MascotPage {s} />
+            {:else if page === "presets"}<PresetsPage {s} />
             {:else if page === "privacy"}<PrivacyPage {s} />
             {:else}<AboutPage {s} />{/if}
           </div>

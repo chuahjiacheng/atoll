@@ -28,7 +28,7 @@
   function clearAll() {
     confirm(
       "Clear all data?",
-      "This removes your settings, clipboard history, whiteboard, file tray, note, focus history and Spotify sign-in. Your Claude Code hooks stay. This cannot be undone.",
+      "This removes your settings and presets, clipboard history, whiteboard, file tray, note, focus history and Spotify sign-in. Your Claude Code hooks stay. This cannot be undone.",
       "Clear all data",
       () => act(settingsApi.clearAllData, "All data cleared"),
     );
@@ -90,7 +90,7 @@
   <Row icon="upload" label="Import settings" help="Replaces your current settings with the ones in a file.">
     <GButton label="Import" onclick={() => viaFile(settingsApi.importSettings, "Settings imported")} />
   </Row>
-  <Row icon="trash" label="Clear all data" help="Removes settings, clipboard history, notes and connections.">
+  <Row icon="trash" label="Clear all data" help="Removes settings, presets, clipboard history, notes and connections.">
     <GButton label="Clear all data" icon="trash" iconSize={16} destructive onclick={clearAll} />
   </Row>
 </Section>
