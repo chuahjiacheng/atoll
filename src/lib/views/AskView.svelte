@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { askApi, onAsk, onAskDelta, ASK_MAX_INPUT, type AskMsg, type AskView } from "../ask";
+  import { askApi, onAsk, onAskDelta, ASK_MAX_INPUT, PROVIDER_LABEL, type AskMsg, type AskView } from "../ask";
   import { renderMarkdown } from "../markdown";
   import { settingsApi } from "../settings";
   import GButton from "../glass/GButton.svelte";
@@ -27,6 +27,16 @@
   let stick = true;
 
   const busy = $derived(view?.busy ?? null);
+  /** Header chip: who answers, and with which model. */
+  const chip = $derived(
+    !view ? "" : view.provider === "gemini" ? view.model : `${PROVIDER_LABEL[view.provider]} · ${view.model || "auto"}`,
+  );
+  /** "via …" when a backup provider or stand-in model answered. */
+  function via(m: AskMsg): string {
+    if (!view || !m.provider || !m.model) return "";
+    if (m.provider !== view.provider) return `via ${PROVIDER_LABEL[m.provider] ?? m.provider} · ${m.model}`;
+    return view.model && m.model !== view.model ? `via ${m.model}` : "";
+  }
   const SUGGESTIONS = ["Explain a regex", "Write a commit message", "Summarise a paragraph"];
 
   function apply(v: AskView) {
@@ -128,15 +138,20 @@
 {#if view && !view.hasKey}
   <div class="empty-state">
     <Pip mood="curious" {tone} size={64} />
-    <div class="title">Add a free Gemini key to start</div>
-    <div class="hint">Ask uses Google's Gemini. A key from Google AI Studio is free and takes a minute to make.</div>
+    {#if view.provider === "groq"}
+      <div class="title">Add a free Groq key to start</div>
+      <div class="hint">Ask is set to use Groq. A key from the Groq console is free and takes a minute to make.</div>
+    {:else}
+      <div class="title">Add a free Gemini key to start</div>
+      <div class="hint">Ask uses Google's Gemini. A key from Google AI Studio is free and takes a minute to make.</div>
+    {/if}
     <GButton label="Open Settings → Ask" icon="sparkle" iconSize={16} variant="filled" onclick={() => settingsApi.openDashboard("ask")} />
   </div>
 {:else}
   <div class="ask">
     <div class="head">
       <span class="label strong">Ask</span>
-      {#if view?.model}<span class="model label" title="Change the model in Settings → Ask">{view.model}</span>{/if}
+      {#if chip}<span class="model label" title="Change this in Settings → Ask">{chip}</span>{/if}
       <span class="spacer"></span>
       {#if messages.length}
         <GButton label="New chat" icon="plus" iconSize={16} onclick={() => askApi.clear()} />
@@ -164,7 +179,7 @@
             {#if m.text}
               <div class="md">{@html renderMarkdown(m.text)}</div>
             {:else if busy === m.id}
-              <div class="thinking" aria-label="Thinking"><span></span><span></span><span></span></div>
+              <div class="thinking" role="status"><span class="word">Thinking</span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
             {/if}
             {#if m.error}<p class="msg-error" class:stopped={m.error === "Stopped."} role={m.error === "Stopped." ? undefined : "alert"}>{m.error}</p>{/if}
             {#if m.text && busy !== m.id}
@@ -172,6 +187,9 @@
                 <button type="button" class="tool" onclick={() => copy(m.text, m.id)} title="Copy the answer">
                   <Icon name={copied === m.id ? "check" : "copy"} size={14} />{copied === m.id ? "Copied" : "Copy"}
                 </button>
+                {#if via(m)}
+                  <span class="via" title="The main choice couldn't answer, so this one did">{via(m)}</span>
+                {/if}
               </div>
             {/if}
           </div>
@@ -268,21 +286,24 @@
   .msg.assistant { align-items: stretch; }
   .tools { display: flex; gap: var(--sp-4); margin-top: var(--sp-4); }
   .tool { display: inline-flex; align-items: center; gap: var(--sp-4); background: transparent; color: var(--c-muted); padding: 2px var(--sp-6); }
+  .tools { align-items: center; }
+  .via { font-size: var(--fs-label); color: var(--c-muted); font-family: var(--font-code); }
   .msg-error { margin: var(--sp-4) 0 0; font-size: var(--fs-small); color: var(--c-err); }
   .msg-error.stopped { color: var(--c-muted); }
   .error { margin: 0; font-size: var(--fs-small); color: var(--c-err); }
 
-  .thinking { display: flex; gap: 4px; padding: var(--sp-8) 0; }
-  .thinking span {
+  .thinking { display: flex; align-items: center; gap: 4px; padding: var(--sp-8) 0; }
+  .thinking .word { font-size: var(--fs-small); color: var(--c-muted); margin-right: var(--sp-4); }
+  .thinking .dot {
     width: 6px; height: 6px; border-radius: 50%;
     background: var(--c-muted);
     animation: blink calc(1.2s / var(--speed, 1)) infinite ease-in-out;
   }
-  .thinking span:nth-child(2) { animation-delay: 0.15s; }
-  .thinking span:nth-child(3) { animation-delay: 0.3s; }
+  .thinking .dot:nth-child(3) { animation-delay: 0.15s; }
+  .thinking .dot:nth-child(4) { animation-delay: 0.3s; }
   @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .thinking span { animation: none; opacity: 0.6; } }
-  :global([data-reduce-motion="on"]) .thinking span { animation: none; opacity: 0.6; }
+  @media (prefers-reduced-motion: reduce) { .thinking .dot { animation: none; opacity: 0.6; } }
+  :global([data-reduce-motion="true"]) .thinking .dot { animation: none; opacity: 0.6; }
 
   .composer { display: flex; align-items: flex-end; gap: var(--sp-8); }
   textarea {
@@ -300,7 +321,9 @@
     line-height: 20px;
     outline: none;
   }
-  textarea:focus-visible { outline: var(--focus-width) solid var(--c-accent); outline-offset: 0; }
+  /* Focus ring drawn inside the box: an outline sits outside it, where the
+     tab's pane clips it and the rounded corners turn square. */
+  textarea:focus-visible { outline: none; box-shadow: inset 0 0 0 var(--focus-width) var(--c-accent); }
 
   /* ---------- rendered Markdown ---------- */
   .md { font-size: var(--fs-body); line-height: var(--lh-loose); color: var(--c-ink); overflow-wrap: anywhere; user-select: text; }

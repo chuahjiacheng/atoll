@@ -14,7 +14,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type SurfaceKey = "peek:permission" | "peek:question" | "peek:ask" | "panel" | "peek:digest" | "peek:finished";
-export type PillKey = "needs-you" | "error" | "focus" | "event" | "busy" | "done" | "music" | "idle";
+export type PillKey = "needs-you" | "error" | "focus" | "assistant" | "event" | "busy" | "done" | "music" | "idle";
 export type ClaimKey = SurfaceKey | PillKey;
 
 export interface Claim {
@@ -31,7 +31,7 @@ export interface Policy {
 
 export interface QueueItem {
   key: ClaimKey;
-  source: "agent" | "focus" | "calendar" | "music" | "user" | "island";
+  source: "agent" | "focus" | "calendar" | "music" | "user" | "island" | "assistant";
   status: "waiting" | "held" | "dwell" | "rate-limited" | "covered";
   reason: string;
   count: number;
@@ -51,7 +51,7 @@ export interface Decision {
 }
 
 /** Used until the first answer arrives, and outside the app (a browser tab has no arbiter). */
-export const DEFAULT_ORDER: PillKey[] = ["needs-you", "error", "focus", "busy", "event", "done", "music", "idle"];
+export const DEFAULT_ORDER: PillKey[] = ["needs-you", "error", "focus", "assistant", "busy", "event", "done", "music", "idle"];
 
 /** The first state in the arbiter's order that is still on offer. */
 export function pickPill(order: readonly PillKey[], offered: ReadonlySet<ClaimKey>): PillKey {

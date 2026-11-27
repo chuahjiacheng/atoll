@@ -374,10 +374,11 @@ fn reset_settings(app: AppHandle, section: String) -> Result<Settings, String> {
             next.alerts.usage_threshold = threshold;
         }
         "mascot" => next.mascot = defaults.mascot,
-        // ask-assistant: model and history choice (the key stays).
+        // ask-assistant: provider, models and history choice (the keys stay).
         "ask" => {
-            next.ask.model = defaults.ask.model;
-            next.ask.keep_history = defaults.ask.keep_history;
+            let seeded = next.ask.seeded;
+            next.ask = defaults.ask;
+            next.ask.seeded = seeded;
         }
         // The focus page also sets the end-of-session sound.
         "focus" => {
@@ -543,6 +544,36 @@ fn ask_forget_key(app: AppHandle) {
 #[tauri::command]
 async fn ask_models() -> Result<Vec<String>, String> {
     ask::models().await
+}
+
+#[tauri::command]
+fn ask_groq_key_status() -> ask::KeyStatus {
+    ask::groq_key_status()
+}
+
+#[tauri::command]
+async fn ask_set_groq_key(app: AppHandle, key: String) -> Result<Vec<String>, String> {
+    ask::set_groq_key(&app, &key).await
+}
+
+#[tauri::command]
+fn ask_forget_groq_key(app: AppHandle) {
+    ask::forget_groq_key(&app);
+}
+
+#[tauri::command]
+async fn ask_groq_models() -> Result<Vec<String>, String> {
+    ask::groq_models().await
+}
+
+#[tauri::command]
+async fn ask_ollama_models() -> Result<Vec<String>, String> {
+    ask::ollama_models().await
+}
+
+#[tauri::command]
+fn ask_usage(app: AppHandle) -> ask::Usage {
+    ask::usage(&app)
 }
 // ---- ask-assistant: end ----
 
@@ -1296,6 +1327,12 @@ pub fn run() {
             ask_set_key,
             ask_forget_key,
             ask_models,
+            ask_groq_key_status,
+            ask_set_groq_key,
+            ask_forget_groq_key,
+            ask_groq_models,
+            ask_ollama_models,
+            ask_usage,
             // ---- ask-assistant: end ----
         ])
         .on_window_event(|window, event| {

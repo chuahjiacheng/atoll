@@ -11,15 +11,35 @@ export interface AskMsg {
   /** Why the reply failed or stopped early. */
   error?: string;
   model?: string;
+  /** "gemini" | "groq" | "ollama" */
+  provider?: string;
 }
 
 export interface AskView {
   messages: AskMsg[];
   /** Id of the reply still being written. */
   busy: number | null;
+  /** The main provider can be used (has its key, or is local). */
   hasKey: boolean;
+  /** Main provider, and the model it is set to ("" = automatic). */
+  provider: AskProvider;
   model: string;
 }
+
+export type AskProvider = "gemini" | "groq" | "ollama";
+
+export interface AskUsage {
+  /** Local date, YYYY-MM-DD */
+  day: string;
+  gemini: number;
+  groq: number;
+  ollama: number;
+  /** From Groq's own rate-limit headers on its last answer. */
+  groqLimit: number | null;
+  groqRemaining: number | null;
+}
+
+export const PROVIDER_LABEL: Record<string, string> = { gemini: "Gemini", groq: "Groq", ollama: "Local" };
 
 export interface AskKeyStatus {
   hasKey: boolean;
@@ -39,6 +59,12 @@ export const askApi = {
   setKey: (key: string) => invoke<string[]>("ask_set_key", { key }),
   forgetKey: () => invoke<void>("ask_forget_key"),
   models: () => invoke<string[]>("ask_models"),
+  groqKeyStatus: () => invoke<AskKeyStatus>("ask_groq_key_status"),
+  setGroqKey: (key: string) => invoke<string[]>("ask_set_groq_key", { key }),
+  forgetGroqKey: () => invoke<void>("ask_forget_groq_key"),
+  groqModels: () => invoke<string[]>("ask_groq_models"),
+  ollamaModels: () => invoke<string[]>("ask_ollama_models"),
+  usage: () => invoke<AskUsage>("ask_usage"),
   /** Opens an https link from a reply in the browser. */
   openLink: (url: string) => invoke<void>("calendar_open", { url }),
 };
@@ -50,3 +76,5 @@ export const onAskDelta = (cb: (d: { id: number; text: string }) => void): Promi
 
 /** Where to get a free key. */
 export const AI_STUDIO_KEYS = "https://aistudio.google.com/app/apikey";
+export const GROQ_KEYS = "https://console.groq.com/keys";
+export const OLLAMA_DOWNLOAD = "https://ollama.com/download";

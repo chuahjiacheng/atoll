@@ -46,7 +46,7 @@
     { id: "rules", title: "Permission rules", icon: "shield", desc: "Let Atoll notice, and if you say so answer, the permission requests you keep allowing." }, // permission-intel
     { id: "spotify", title: "Spotify", icon: "music", desc: "Show and control the Spotify app on this PC. One click, no sign-in.", reset: "spotify" },
     { id: "calendar", title: "Calendar", icon: "calendar", desc: "Connect your Google account and choose which calendars the island shows.", reset: "calendar" },
-    { id: "ask", title: "Ask", icon: "sparkle", desc: "Your Gemini key, the model Ask uses, and what happens to the chat.", reset: "ask" }, // ask-assistant
+    { id: "ask", title: "Ask", icon: "sparkle", desc: "Who answers (Gemini, Groq or a model on this PC), keys, models and today's use.", reset: "ask" }, // ask-assistant
     { id: "clipboard", title: "Clipboard and whiteboard", icon: "clipboard", desc: "Clipboard history, privacy and whiteboard options.", reset: "clipboard" },
     { id: "focus", title: "Focus timer", icon: "focus", desc: "Session lengths, breaks, sound, and what alerts do while you focus.", reset: "focus" },
     { id: "alerts", title: "Alerts and sounds", icon: "bell", desc: "Sounds and Windows notifications for each event.", reset: "alerts" },

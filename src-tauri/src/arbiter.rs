@@ -63,6 +63,9 @@ pub enum Key {
     Error,
     #[serde(rename = "focus")]
     Focus,
+    /// Ask is writing an answer (ask-assistant).
+    #[serde(rename = "assistant")]
+    Assistant,
     #[serde(rename = "event")]
     Event,
     #[serde(rename = "busy")]
@@ -84,6 +87,7 @@ pub enum Source {
     Music,
     User,
     Island,
+    Assistant,
 }
 
 const SURFACES: [Key; 6] = [Key::PeekPermission, Key::PeekQuestion, Key::PeekAsk, Key::Panel, Key::PeekDigest, Key::PeekFinished];
@@ -100,6 +104,7 @@ impl Key {
             Key::Event => Source::Calendar,
             Key::Music => Source::Music,
             Key::Panel => Source::User,
+            Key::Assistant => Source::Assistant,
             Key::Idle => Source::Island,
         }
     }
@@ -111,7 +116,7 @@ pub fn rate_ms(source: Source) -> f64 {
         Source::Agent => 1000.0,
         Source::Music => 1000.0,
         Source::Calendar => 3000.0,
-        Source::Focus | Source::User | Source::Island => 0.0,
+        Source::Focus | Source::User | Source::Island | Source::Assistant => 0.0,
     }
 }
 
@@ -266,6 +271,8 @@ impl Arbiter {
         if error_held {
             push(Key::Error, true, "held back during focus");
         }
+        // You just asked something: the answer beats agent status, events and music.
+        push(Key::Assistant, false, "Ask is answering your question");
         // An event about to start beats music, idle and a finished task, but
         // not an agent at work.
         let event_blocked = has(Key::Busy);
@@ -424,6 +431,7 @@ fn name(key: Key) -> &'static str {
         Key::NeedsYou => "needs you",
         Key::Error => "the error",
         Key::Focus => "the focus timer",
+        Key::Assistant => "Ask's answer",
         Key::Event => "the event",
         Key::Busy => "the busy agent",
         Key::Done => "the finished agent",
@@ -527,6 +535,13 @@ mod tests {
             (&[Focus, Event], PLAIN, Focus),
             (&[Focus, Event, Busy, Music], MUSIC_FIRST, Focus),
             (&[Focus, NeedsYou], PLAIN, NeedsYou),
+            // Ask's answer: after needs you, errors and the focus timer; before everything else.
+            (&[Assistant], PLAIN, Assistant),
+            (&[Assistant, Busy, Event, Music], PLAIN, Assistant),
+            (&[Assistant, Busy, Music], MUSIC_FIRST, Assistant),
+            (&[Assistant, NeedsYou], PLAIN, NeedsYou),
+            (&[Assistant, Error], PLAIN, Error),
+            (&[Assistant, Focus], PLAIN, Focus),
             (&[Focus, NeedsYou], DND, NeedsYou),
             (&[Focus, Error], PLAIN, Error),           // a break, or Do not disturb off
             (&[Focus, Error], DND, Focus),             // held

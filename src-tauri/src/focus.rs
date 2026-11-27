@@ -724,6 +724,11 @@ fn day_number(ms: u64, offset: i64) -> i64 {
     (ms as i64 + offset).div_euclid(DAY_MS)
 }
 
+/// Today's local date as YYYY-MM-DD (ask-assistant usage counters).
+pub(crate) fn today_key() -> String {
+    date_key(today())
+}
+
 fn date_key(day: i64) -> String {
     let (y, m, d) = civil_from_days(day);
     format!("{y:04}-{m:02}-{d:02}")

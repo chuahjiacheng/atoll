@@ -55,6 +55,7 @@
   import TrayView from "./lib/TrayView.svelte";
   import NoteView from "./lib/NoteView.svelte";
   import AskView from "./lib/views/AskView.svelte"; // ask-assistant
+  import { askApi, onAsk, onAskDelta, type AskView as AskState } from "./lib/ask"; // ask-assistant
   import CalendarView from "./lib/views/CalendarView.svelte";
   import { calendarApi, onAgenda, onCalendarStatus, soonEvent, timed, untilText, type Agenda, type CalendarStatus } from "./lib/calendar";
 
@@ -191,6 +192,18 @@
   // ---------- calendar ----------
   const calOn = $derived(on("calendar"));
   /** Settings → Calendar: the next event shows in the pill this many minutes before it starts. */
+  // ---- ask-assistant: an answer being written shows in the pill ----
+  let askState = $state<AskState | null>(null);
+  /** The answer in progress has started writing (not just thinking). */
+  let askWriting = $state(false);
+  const askBusy = $derived(!!askState?.busy && !!settings?.modules.ask);
+  const askQuestion = $derived.by(() => {
+    const msgs = askState?.messages ?? [];
+    for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === "user") return msgs[i].text.replace(/\s+/g, " ");
+    return "";
+  });
+  const askWord = $derived(askWriting ? "Writing" : "Thinking");
+  // ---- ask-assistant: end ----
   const soon = $derived(
     calOn && calStatus?.connected && agenda ? soonEvent(timed(agenda.events, now, false), now, settings?.calendar.pillMinutes ?? 10) : null,
   );
@@ -267,6 +280,7 @@
     else if (pillStatus === "working") c.push({ key: "busy" });
     else if (pillStatus === "done") c.push({ key: "done" });
     if (timer) c.push({ key: "focus" });
+    if (askBusy) c.push({ key: "assistant" }); // ask-assistant
     if (soon) c.push({ key: "event" });
     if (musicInPill) c.push({ key: "music" });
     return c;
@@ -283,8 +297,8 @@
   /** The first state in the arbiter's order that is still on offer: a state
    *  that ends is replaced at once, a new one waits for the arbiter's answer. */
   const pillKey = $derived(pickPill(decision?.order ?? DEFAULT_ORDER, new Set(claims.map((c) => c.key))));
-  const pillKind = $derived<"idle" | "status" | "music" | "timer" | "event">(
-    pillKey === "focus" ? "timer" : pillKey === "event" || pillKey === "music" || pillKey === "idle" ? pillKey : "status",
+  const pillKind = $derived<"idle" | "status" | "music" | "timer" | "event" | "assistant">(
+    pillKey === "focus" ? "timer" : pillKey === "event" || pillKey === "music" || pillKey === "idle" || pillKey === "assistant" ? pillKey : "status",
   );
   const timerNote = $derived(nudging && timer?.nudge ? `${timer.nudge.app} · back to focus?` : (timer?.intention ?? ""));
   /** Settings → Appearance size and roundness: the outline re-fits as soon as any of them change. */
@@ -493,7 +507,17 @@
     calendarApi.status().then((c) => (calStatus = c));
     calendarApi.agenda().then((a) => (agenda = a));
 
+    askApi.get().then((v) => (askState = v)).catch(() => {}); // ask-assistant
     const unlisten = [
+      // ---- ask-assistant: begin ----
+      onAsk((v) => {
+        if (v.busy !== askState?.busy) askWriting = false;
+        askState = v;
+      }),
+      onAskDelta((d) => {
+        if (d.id === askState?.busy && d.text) askWriting = true;
+      }),
+      // ---- ask-assistant: end ----
       onFocus((f) => (focus = f)),
       onUsage((u) => (usage = u)),
       onSettings(applySettings),
@@ -629,6 +653,7 @@
       const state = !timer.running ? `paused, ${t} left` : timer.lengthMs ? `${t} left` : `${t} so far`;
       return `${what}, ${state}${timerNote ? `. ${timerNote}` : ""}. Open Atoll`;
     }
+    if (pillKind === "assistant") return `Ask is ${askWriting ? "writing" : "thinking about"} an answer: ${askQuestion}. Open Ask`; // ask-assistant
     if (pillKind === "event" && soon) return `${soon.title}, ${untilText(soon.startMs, now) === "now" ? "starting now" : `starts ${untilText(soon.startMs, now)}`}. Open Atoll`;
     if (pillKind === "music" && track) return `Now playing ${track.name} by ${track.artists}. Open Atoll`;
     if (pillKind === "status" && top && pillStatus) return `Agent ${STATUS_LOOK[pillStatus].word}: ${summary(top, live)}. Open Atoll`;
@@ -653,6 +678,8 @@
           : "music"
         : pillKind === "event"
           ? "event"
+          : pillKind === "assistant"
+            ? "assistant"
           : pillKind === "status" && pillStatus && pillStatus !== "idle"
             ? pillStatus === "working"
               ? "busy"
@@ -699,6 +726,8 @@
             ? musicContract({ title: track.name, artist: track.artists })
             : pillState === "event" && soon
               ? statusContract("event", { word: eventWord, text: soon.title, showPip })
+              : pillState === "assistant"
+                ? statusContract("assistant", { word: askWord, text: askQuestion, showPip })
               : pillKind === "status" && top && pillStatus
                 ? statusContract(pillState, { word: STATUS_LOOK[pillStatus].word, text: statusText, meta: statusMeta, showPip })
                 : idleContract(showPip);
@@ -849,6 +878,20 @@
             width={pillW}
             label={pillLabel}
             onclick={() => openPanel(chosenTab)}
+          />
+        {:else if pillKind === "assistant"}
+          <!-- ask-assistant -->
+          <Pill
+            kind="status"
+            {tone}
+            mood="focused"
+            icon="sparkle"
+            word={askWord}
+            tint="accent"
+            text={askQuestion}
+            width={pillW}
+            label={pillLabel}
+            onclick={() => openPanel(tabs.some((t) => t.id === "ask") ? "ask" : chosenTab)}
           />
         {:else if pillKind === "event" && soon}
           <Pill

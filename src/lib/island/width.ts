@@ -12,6 +12,7 @@ export type IslandStateId =
   | "lyrics"
   | "focus"
   | "event"
+  | "assistant"
   | "peek:permission"
   | "peek:question"
   | "peek:ask"

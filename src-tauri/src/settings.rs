@@ -46,17 +46,38 @@ pub struct Settings {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AskSettings {
+    /// "gemini" | "groq" | "ollama": who answers first.
+    pub provider: String,
+    /// When the main cloud provider can't answer, use the other one (if it has a key).
+    pub backup: bool,
     /// Gemini model id ("gemini-flash-latest" follows Google's newest Flash).
     pub model: String,
+    /// Groq model id ("" = picked automatically).
+    pub groq_model: String,
+    /// Ollama model name ("" = the first one installed).
+    pub ollama_model: String,
     /// Keep the chat on disk between restarts.
     pub keep_history: bool,
     /// One-time defaults (the Ask hotkey) have been added.
     pub seeded: bool,
+    /// Later one-time changes applied (2 = default model moved to Flash-Lite).
+    /// Missing in older files = 0, so those changes still run once.
+    #[serde(default)]
+    pub seed_version: u32,
 }
 
 impl Default for AskSettings {
     fn default() -> Self {
-        AskSettings { model: crate::ask::DEFAULT_MODEL.into(), keep_history: true, seeded: false }
+        AskSettings {
+            provider: "gemini".into(),
+            backup: true,
+            model: crate::ask::DEFAULT_MODEL.into(),
+            groq_model: String::new(),
+            ollama_model: String::new(),
+            keep_history: true,
+            seeded: false,
+            seed_version: 2,
+        }
     }
 }
 // ---- ask-assistant: end ----
@@ -757,7 +778,14 @@ impl Settings {
         self.calendar.client_id =
             self.calendar.client_id.trim().chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')).take(200).collect();
         self.calendar.days_ahead = self.calendar.days_ahead.clamp(1, 14);
-        self.ask.model = crate::ask::clean_model(&self.ask.model); // ask-assistant
+        // ---- ask-assistant: begin ----
+        self.ask.model = crate::ask::clean_model(&self.ask.model);
+        if !["gemini", "groq", "ollama"].contains(&self.ask.provider.as_str()) {
+            self.ask.provider = "gemini".into();
+        }
+        self.ask.groq_model = crate::ask::clean_model_id(&self.ask.groq_model);
+        self.ask.ollama_model = crate::ask::clean_model_id(&self.ask.ollama_model);
+        // ---- ask-assistant: end ----
         self.calendar.pill_minutes = self.calendar.pill_minutes.min(60);
         self.calendar.shown.retain(|k, _| !k.is_empty() && k.len() <= 300);
         self.version = CURRENT_VERSION;

@@ -175,7 +175,19 @@ export interface Settings {
   calendar: CalendarSettings;
   // ---- ask-assistant: begin ----
   /** Ask, the AI assistant tab (the API key lives in Windows Credential Manager). */
-  ask: { model: string; keepHistory: boolean; seeded: boolean };
+  ask: {
+    provider: "gemini" | "groq" | "ollama";
+    /** Use the other cloud provider when the main one can't answer. */
+    backup: boolean;
+    model: string;
+    /** "" = automatic */
+    groqModel: string;
+    /** "" = the first model installed */
+    ollamaModel: string;
+    keepHistory: boolean;
+    seeded: boolean;
+    seedVersion: number;
+  };
   // ---- ask-assistant: end ----
   /** Tab order of the expanded island (module keys). */
   moduleOrder: string[];
