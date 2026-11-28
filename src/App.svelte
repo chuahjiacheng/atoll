@@ -42,7 +42,7 @@
   import { DEFAULT_ORDER, createArbiter, pickPill, type Claim, type Decision, type Policy } from "./lib/island/arbiter";
   import { measurer } from "./lib/island/measure";
   import { exposeMetrics, metrics } from "./lib/island/metrics";
-  import { onInvalidate, resolveWidth, settleWidth, withFixedSize, type IslandStateId } from "./lib/island/width";
+  import { onInvalidate, pillCeilingFor, resolveWidth, settleWidth, withFixedSize, type IslandStateId } from "./lib/island/width";
   import { px } from "./lib/theme";
   import type { TabDef } from "./lib/island/Tabs.svelte";
   import FocusTab from "./lib/views/FocusView.svelte";
@@ -755,13 +755,14 @@
   });
   /** Settings → Appearance → Collapsed width is the pill's fixed size; idle is half of it. */
   const pillCeiling = $derived(settings?.appearance.collapsedWidth ?? 384);
-  /** A long lyric line may take the pill past that, up to the width of the open panel. */
-  const lyricsCeiling = $derived(Math.max(pillCeiling, settings?.appearance.expandedWidth ?? pillCeiling));
+  /** A long lyric line, or a long step or note from Claude, may take the pill
+   *  past that, up to the width of the open panel. */
+  const growCeiling = $derived(pillCeilingFor(pillState, pillCeiling, settings?.appearance.expandedWidth ?? pillCeiling));
   const pillFit = $derived.by(() => {
     void measured;
-    const fit = resolveWidth(pillContract, measurer, pillState === "lyrics" ? lyricsCeiling : pillCeiling);
+    const fit = resolveWidth(pillContract, measurer, growCeiling);
     // Idle rests at half the fixed size; every other state has the fixed size
-    // and only lyrics grow past it, for a line too long to fit.
+    // and only lyrics and Claude's status grow past it, for text too long to fit.
     return withFixedSize(fit, pillState === "idle" ? pillCeiling / 2 : pillCeiling);
   });
   let pillW = $state(64);
@@ -821,7 +822,7 @@
   $effect(() => {
     metrics.setState(islandState, islandReason);
     const least = Math.max(pillContract.min, pillState === "idle" ? pillCeiling / 2 : pillCeiling);
-    metrics.setLimits(least, Math.max(least, Math.min(pillContract.max, pillState === "lyrics" ? lyricsCeiling : pillCeiling)));
+    metrics.setLimits(least, Math.max(least, Math.min(pillContract.max, growCeiling)));
     metrics.lyrics = lyricPlan
       ? {
           mode: lyricsMode,

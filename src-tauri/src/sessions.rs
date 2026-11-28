@@ -337,9 +337,63 @@ pub fn describe_tool(tool: &str, input: &Value) -> Activity {
     Activity { kind: kind.into(), label: label.into(), detail, active: true }
 }
 
+/// What the island shows for a tool call. Commands and subagents come with a
+/// short description written for people ("Run the unit tests"): that is shown
+/// instead of the raw command line. Without one, the same as describe_tool.
+pub fn current_activity(tool: &str, input: &Value) -> Activity {
+    let mut a = describe_tool(tool, input);
+    if matches!(tool, "Bash" | "PowerShell" | "Task" | "Agent") {
+        let said = shorten(str_field(input, "description"), 80);
+        if !said.is_empty() {
+            a.label = said;
+            a.detail = String::new();
+        }
+    }
+    a
+}
+
+const PLAN_TOOLS: [&str; 5] = ["TodoWrite", "TaskCreate", "TaskUpdate", "mcp__ccd_turn__update_plan", "mcp__ccd_turn__wrap_up"];
+
+/// Rebuild a session's task list from its transcript (Claude Code's .jsonl
+/// log), by replaying every task-list call in it. The list otherwise lives only
+/// in memory, so without this an island that restarted mid-task forgets it and
+/// shows the raw activity until Claude sends a whole new list.
+/// `before`: stop at this tool call (the one the hook is about to apply itself).
+pub fn plan_from_transcript(text: &str, before: Option<&str>) -> Vec<PlanStep> {
+    let mut plan = Vec::new();
+    for line in text.lines() {
+        if !line.contains("\"type\":\"assistant\"") || !PLAN_TOOLS.iter().any(|t| line.contains(t)) {
+            continue;
+        }
+        let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
+        if v.get("type").and_then(Value::as_str) != Some("assistant") || v.get("isSidechain").and_then(Value::as_bool) == Some(true) {
+            continue;
+        }
+        let Some(blocks) = v.pointer("/message/content").and_then(Value::as_array) else { continue };
+        for b in blocks.iter().filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_use")) {
+            if before.is_some() && b.get("id").and_then(Value::as_str) == before {
+                return plan;
+            }
+            apply_plan(&mut plan, str_field(b, "name"), b.get("input").unwrap_or(&Value::Null));
+        }
+    }
+    plan
+}
+
 impl SessionStore {
+    /// True once a hook event of this session has been seen.
+    pub fn knows(&self, id: &str) -> bool {
+        self.sessions.contains_key(id)
+    }
+
     /// Apply one hook event. Returns true if anything visible changed.
     pub fn apply(&mut self, event: &Value) -> bool {
+        self.apply_seeded(event, Vec::new())
+    }
+
+    /// apply(), with the task list a session starts from if it is new to the
+    /// store (see plan_from_transcript).
+    pub fn apply_seeded(&mut self, event: &Value, seed: Vec<PlanStep>) -> bool {
         let id = str_field(event, "session_id");
         if id.is_empty() {
             return false;
@@ -361,7 +415,7 @@ impl SessionStore {
                 source: source.into(),
                 status: Status::Idle,
                 activity: None,
-                plan: Vec::new(),
+                plan: seed,
                 message: None,
                 prompt: None,
                 answer: None,
@@ -411,7 +465,7 @@ impl SessionStore {
                     target: a.detail.clone(),
                     at: now,
                 };
-                session.activity = Some(a);
+                session.activity = Some(current_activity(tool, &input));
                 session.tool_count += 1;
                 self.log.push_front(entry);
                 self.log.truncate(LOG_LEN);
@@ -623,6 +677,58 @@ mod tests {
 
         store.apply(&base("SessionEnd"));
         assert!(store.snapshot().is_empty());
+    }
+
+    #[test]
+    fn picks_the_task_list_back_up_from_the_transcript() {
+        let line = |id: &str, name: &str, input: Value| {
+            json!({"type": "assistant", "message": {"content": [{"type": "tool_use", "id": id, "name": name, "input": input}]}}).to_string()
+        };
+        let items = json!({"items": [
+            {"content": "Look", "status": "in_progress"},
+            {"content": "Build", "status": "pending"},
+            {"content": "Test", "status": "pending"}
+        ]});
+        let sub = json!({"type": "assistant", "isSidechain": true, "message": {"content": [{"type": "tool_use", "id": "s", "name": "TodoWrite", "input": {"todos": []}}]}});
+        let text = [
+            json!({"type": "user", "message": {"content": "do it"}}).to_string(),
+            line("a", "mcp__ccd_turn__update_plan", items),
+            line("b", "Bash", json!({"command": "ls"})),
+            sub.to_string(),
+            line("c", "mcp__ccd_turn__update_plan", json!({"advance": true})),
+            "not json at all \"type\":\"assistant\" TodoWrite".to_string(),
+            line("d", "mcp__ccd_turn__update_plan", json!({"advance": true})),
+        ]
+        .join("
+");
+        let st = |p: &[PlanStep]| p.iter().map(|s| s.status.clone()).collect::<Vec<_>>();
+        // Everything replayed: on step 3. Subagent lists and junk lines are ignored.
+        assert_eq!(st(&plan_from_transcript(&text, None)), ["completed", "completed", "in_progress"]);
+        // The hook is about to apply "d" itself: stop before it, so it is not applied twice.
+        assert_eq!(st(&plan_from_transcript(&text, Some("d"))), ["completed", "in_progress", "pending"]);
+        assert!(plan_from_transcript("", None).is_empty());
+
+        // An island that restarted mid-task: the session is new to it, seeded from the log.
+        let mut store = SessionStore::default();
+        assert!(!store.knows("s1"));
+        let ev = json!({"session_id": "s1", "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "cd /x; npm test", "description": "Run the tests"}});
+        store.apply_seeded(&ev, plan_from_transcript(&text, None));
+        assert!(store.knows("s1"));
+        let s = store.snapshot().into_iter().find(|s| s.id == "s1").unwrap();
+        assert_eq!(s.plan[2].status, "in_progress");
+        // The pill gets the command's description, not the command line.
+        let a = s.activity.unwrap();
+        assert_eq!((a.label.as_str(), a.detail.as_str()), ("Run the tests", ""));
+        // The live log still says what actually ran.
+        assert_eq!(store.feed().log[0].target, "cd /x; npm test");
+    }
+
+    #[test]
+    fn a_command_without_a_description_shows_the_command() {
+        let a = current_activity("Bash", &json!({"command": "npm test"}));
+        assert_eq!((a.label.as_str(), a.detail.as_str()), ("Running", "npm test"));
+        let a = current_activity("Read", &json!({"file_path": "C:/x/y.rs", "description": "ignored"}));
+        assert_eq!((a.label.as_str(), a.detail.as_str()), ("Reading", "y.rs"));
     }
 
     #[test]

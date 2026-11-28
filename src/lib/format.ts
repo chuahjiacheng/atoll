@@ -57,7 +57,9 @@ export function clockTime(ms: number): string {
  *  Null when it made no list, or every step is finished. */
 export function currentStep(s: Session): string | null {
   const plan = s.plan ?? [];
-  const i = plan.findIndex((p) => p.status === "in_progress");
+  let i = plan.findIndex((p) => p.status === "in_progress");
+  // Between steps (one ticked off, the next not started yet): the next one.
+  if (i < 0) i = plan.findIndex((p) => p.status === "pending");
   if (i < 0) return null;
   return `${i + 1}/${plan.length} · ${plan[i].content}`;
 }

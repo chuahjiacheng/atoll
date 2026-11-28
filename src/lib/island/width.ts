@@ -76,6 +76,20 @@ export function withFixedSize(r: Resolved, base: number): Resolved {
   return r.width >= floor ? r : { ...r, width: floor };
 }
 
+/** States whose text may take the pill past its fixed size: a lyric line, and
+ *  Claude's step or note (its task list item, or what it is doing). */
+const GROWS: ReadonlySet<IslandStateId> = new Set(["lyrics", "busy", "done", "error", "attention"]);
+
+/**
+ * How wide the pill may get in a state. Every state stays within `fixed`
+ * (Settings → Appearance → Collapsed width), except the ones in GROWS: for
+ * text too long to fit they grow, up to `expanded` (the open panel's width),
+ * and go back to the fixed size once the text fits again.
+ */
+export function pillCeilingFor(id: IslandStateId, fixed: number, expanded: number): number {
+  return GROWS.has(id) ? Math.max(fixed, expanded) : fixed;
+}
+
 /**
  * Small differences are ignored so the island does not twitch: within one
  * state, it only shrinks once the content is at least `deadband` narrower.

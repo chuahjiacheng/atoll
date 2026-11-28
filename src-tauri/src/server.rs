@@ -276,7 +276,19 @@ async fn handle_hook(State(ctx): State<Ctx>, headers: HeaderMap, body: Bytes) ->
     let name = event.get("hook_event_name").and_then(Value::as_str).unwrap_or("");
     let session_id = event.get("session_id").and_then(Value::as_str).unwrap_or("").to_string();
 
-    if state.sessions.lock().unwrap().apply(&event) {
+    // A session new to the island (it started before the island, or the island
+    // restarted) may be mid-task: pick its task list back up from its transcript.
+    let seed = if !session_id.is_empty() && !state.sessions.lock().unwrap().knows(&session_id) {
+        event
+            .get("transcript_path")
+            .and_then(Value::as_str)
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .map(|text| crate::sessions::plan_from_transcript(&text, event.get("tool_use_id").and_then(Value::as_str)))
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    if state.sessions.lock().unwrap().apply_seeded(&event, seed) {
         crate::emit_sessions(&ctx.app);
     }
     trigger_alerts(&ctx.app, &event, name, &session_id);
