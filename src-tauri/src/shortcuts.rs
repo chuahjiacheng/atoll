@@ -134,6 +134,7 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
         // ---- search-clipboard: begin ----
         Some(Action::Module(m)) if m == "palette" => crate::search::palette::toggle(app),
         // ---- search-clipboard: end ----
+        Some(Action::Module(m)) if m == "askSnip" => crate::ask::snip(app), // ask-assistant
         Some(Action::Module(m)) if matches!(m.as_str(), "clipboard" | "whiteboard" | "fileTray" | "note" | "calendar" | "ask") => {
             crate::windows::open_tab(app, &m)
         }

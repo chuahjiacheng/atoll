@@ -514,8 +514,18 @@ fn ask_get(app: AppHandle) -> ask::AskView {
 }
 
 #[tauri::command]
-fn ask_send(app: AppHandle, text: String, attach: Option<Vec<String>>) -> Result<(), String> {
-    ask::send(&app, text, attach.unwrap_or_default())
+fn ask_send(app: AppHandle, text: String, attach: Option<Vec<String>>, pictures: Option<Vec<String>>) -> Result<(), String> {
+    ask::send(&app, text, attach.unwrap_or_default(), pictures.unwrap_or_default())
+}
+
+#[tauri::command]
+fn ask_paste_picture(data: String) -> Result<ask::Picture, String> {
+    ask::paste_picture(&data)
+}
+
+#[tauri::command]
+fn ask_snip(app: AppHandle) {
+    ask::snip(&app);
 }
 
 #[tauri::command]
@@ -1378,6 +1388,8 @@ pub fn run() {
             ask_usage,
             ask_screen_title,
             ask_warm,
+            ask_paste_picture,
+            ask_snip,
             ask_search_key_status,
             ask_set_search_key,
             ask_forget_search_key,

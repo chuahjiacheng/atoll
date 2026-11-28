@@ -520,6 +520,8 @@
       onAskDelta((d) => {
         if (d.id === askState?.busy && d.text) askWriting = true;
       }),
+      // Snip: get out of the way of Windows' snipping overlay.
+      listen("ask:snipping", () => done()),
       // ---- ask-assistant: end ----
       onFocus((f) => (focus = f)),
       onUsage((u) => (usage = u)),

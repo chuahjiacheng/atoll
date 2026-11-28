@@ -33,6 +33,8 @@ pub const DEFAULT_MODEL: &str = "gemini-flash-lite-latest";
 /// The default before 2026-11-27 (moved to DEFAULT_MODEL once, see seed_settings).
 const OLD_DEFAULT_MODEL: &str = "gemini-flash-latest";
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Alt+KeyA";
+/// Snip part of the screen and ask about it.
+pub const SNIP_HOTKEY: &str = "Ctrl+Alt+KeyQ";
 
 /// A new chat starts after this long without a message.
 const IDLE_NEW_CHAT_MS: u64 = 30 * 60 * 1000;
@@ -683,7 +685,7 @@ pub async fn models() -> Result<Vec<String>, String> {
 
 // ---------- asking ----------
 
-pub fn send(app: &AppHandle, text: String, attach: Vec<String>) -> Result<(), String> {
+pub fn send(app: &AppHandle, text: String, attach: Vec<String>, pictures: Vec<String>) -> Result<(), String> {
     let text = text.trim().to_string();
     if text.is_empty() {
         return Err("Type a question first.".into());
@@ -697,7 +699,13 @@ pub fn send(app: &AppHandle, text: String, attach: Vec<String>) -> Result<(), St
     }
     let (main, _, backup) = choice(app);
     let mut plan = provider_plan(&main, backup, load_key().is_some(), load_named(GROQ_KEY).is_some())?;
-    let attached = gather(app, &attach)?;
+    let mut attached = gather(app, &attach)?;
+    if pictures.len() > 6 {
+        return Err("Send at most 6 pictures with one question.".into());
+    }
+    for p in &pictures {
+        attached.push(picture_context(p)?);
+    }
     let web = attach.iter().any(|k| k == "web");
     if web && !allowed_context(app).iter().any(|k| k == "web") {
         return Err("Add a web search key in Settings → Ask first.".into());
@@ -1430,10 +1438,23 @@ pub fn encode_bgra_jpeg(bgra: &[u8], w: u32, h: u32) -> Result<Vec<u8>, String> 
     for p in bgra.chunks_exact(4) {
         rgb.extend_from_slice(&[p[2], p[1], p[0]]);
     }
-    let mut img = image::DynamicImage::ImageRgb8(image::RgbImage::from_raw(w, h, rgb).ok_or("Bad picture size.")?);
-    if w > 1600 {
-        img = img.resize(1600, u32::MAX, image::imageops::FilterType::Triangle);
+    encode_jpeg(image::DynamicImage::ImageRgb8(image::RgbImage::from_raw(w, h, rgb).ok_or("Bad picture size.")?))
+}
+
+/// Any picture → JPEG (transparent parts on white), at most 1600 px on its long side.
+pub fn encode_jpeg(img: image::DynamicImage) -> Result<Vec<u8>, String> {
+    let mut img = img;
+    if img.width().max(img.height()) > 1600 {
+        img = img.resize(1600, 1600, image::imageops::FilterType::Triangle);
     }
+    let rgba = img.to_rgba8();
+    let mut rgb = image::RgbImage::new(rgba.width(), rgba.height());
+    for (x, y, p) in rgba.enumerate_pixels() {
+        let a = p.0[3] as u32;
+        let mix = |c: u8| ((c as u32 * a + 255 * (255 - a)) / 255) as u8;
+        rgb.put_pixel(x, y, image::Rgb([mix(p.0[0]), mix(p.0[1]), mix(p.0[2])]));
+    }
+    let img = image::DynamicImage::ImageRgb8(rgb);
     let mut out = Vec::new();
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 82)
         .encode_image(&img)
@@ -1590,6 +1611,148 @@ pub fn forget_search_key(app: &AppHandle, provider: &str) {
 pub async fn test_search_key(provider: &str) -> Result<(), String> {
     let key = load_named(search_key_name(provider)).ok_or("Add a key first.")?;
     search_with(provider, &key, "weather today").await.map(|_| ())
+}
+
+// ---------- pictures you paste or snip ----------
+
+/// A picture waiting to go with the next question.
+#[derive(Clone, Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Picture {
+    /// Saved copy on this PC (sent with the question).
+    pub path: String,
+    /// Small PNG preview as a data URL.
+    pub thumb: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Biggest picture accepted, encoded.
+const MAX_PICTURE_BYTES: usize = 25 * 1024 * 1024;
+
+/// Save a picture for Ask (as JPEG in the shots folder) with a preview.
+pub fn save_picture(img: image::DynamicImage) -> Result<Picture, String> {
+    use base64::Engine;
+    let (width, height) = (img.width(), img.height());
+    if width == 0 || height == 0 {
+        return Err("That picture is empty.".into());
+    }
+    let mut thumb = Vec::new();
+    img.thumbnail(160, 160)
+        .write_to(&mut std::io::Cursor::new(&mut thumb), image::ImageFormat::Png)
+        .map_err(|e| format!("Couldn't read the picture: {e}"))?;
+    let jpeg = encode_jpeg(img)?;
+    let dir = shots_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Couldn't save the picture: {e}"))?;
+    prune_shots(&dir);
+    let path = dir.join(format!("{}-{}.jpg", now_ms(), random_tag()));
+    std::fs::write(&path, jpeg).map_err(|e| format!("Couldn't save the picture: {e}"))?;
+    Ok(Picture {
+        path: path.to_string_lossy().into_owned(),
+        thumb: format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(thumb)),
+        width,
+        height,
+    })
+}
+
+fn random_tag() -> String {
+    let mut b = [0u8; 4];
+    let _ = getrandom::fill(&mut b);
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// Keep only the newest pictures (questions keep their own path; old ones go).
+fn prune_shots(dir: &std::path::Path) {
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        let mut files: Vec<_> = rd.filter_map(Result::ok).map(|e| e.path()).collect();
+        files.sort();
+        while files.len() >= 30 {
+            let _ = std::fs::remove_file(files.remove(0));
+        }
+    }
+}
+
+/// A picture pasted into the question box (base64 of the image file).
+pub fn paste_picture(data: &str) -> Result<Picture, String> {
+    use base64::Engine;
+    let data = data.split_once("base64,").map(|(_, d)| d).unwrap_or(data);
+    if data.len() > MAX_PICTURE_BYTES * 4 / 3 + 16 {
+        return Err("That picture is too big (25 MB at most).".into());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data.trim()).map_err(|_| "Couldn't read that picture.".to_string())?;
+    let img = image::load_from_memory(&bytes).map_err(|_| "That isn't a picture Ask can read (PNG, JPEG, GIF, WebP or BMP).".to_string())?;
+    save_picture(img)
+}
+
+/// A picture to send: only ones Ask saved itself (in its shots folder).
+pub fn picture_context(path: &str) -> Result<Attached, String> {
+    let dir = std::fs::canonicalize(shots_dir()).map_err(|_| "That picture is no longer saved.".to_string())?;
+    let file = std::fs::canonicalize(path).map_err(|_| "That picture is no longer saved.".to_string())?;
+    if !file.starts_with(&dir) {
+        return Err("Ask can only send pictures you pasted or snipped.".into());
+    }
+    Ok(Attached {
+        kind: "picture".into(),
+        label: "Picture".into(),
+        text: "The user attached a picture; it is attached.".into(),
+        image: Some(file.to_string_lossy().into_owned()),
+        ..Default::default()
+    })
+}
+
+/// Snip: open Windows' own region snipping, then put the picture in Ask.
+/// Windows copies a finished snip to the clipboard; Ask waits for that
+/// (up to two minutes, so a cancelled snip just ends quietly).
+pub fn snip(app: &AppHandle) {
+    use std::sync::atomic::AtomicBool;
+    static RUNNING: AtomicBool = AtomicBool::new(false);
+    if RUNNING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    // The island steps out of the way of the snipping overlay.
+    let _ = app.emit("ask:snipping", ());
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let seq = || unsafe { windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber() };
+        let start = seq();
+        std::thread::sleep(Duration::from_millis(250));
+        let launched = std::process::Command::new("explorer.exe").arg("ms-screenclip:").spawn();
+        if launched.is_err() {
+            let _ = app.emit("ask:picture-error", "Couldn't open Windows' snipping. Press Win+Shift+S, then paste the picture into Ask.");
+            RUNNING.store(false, Ordering::SeqCst);
+            return;
+        }
+        let deadline = std::time::Instant::now() + Duration::from_secs(120);
+        let mut last = start;
+        while std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(300));
+            let now = seq();
+            if now == last {
+                continue;
+            }
+            last = now;
+            let img = match crate::winclip::read_with(false) {
+                Some(crate::winclip::Content::Image(crate::winclip::Image::Png(b))) => image::load_from_memory(&b).ok(),
+                Some(crate::winclip::Content::Image(crate::winclip::Image::Rgba { width, height, pixels })) => {
+                    image::RgbaImage::from_raw(width, height, pixels).map(image::DynamicImage::ImageRgba8)
+                }
+                _ => None,
+            };
+            if let Some(img) = img {
+                match save_picture(img) {
+                    Ok(p) => {
+                        crate::windows::open_tab(&app, "ask");
+                        let _ = app.emit("ask:picture", p);
+                    }
+                    Err(e) => {
+                        let _ = app.emit("ask:picture-error", e);
+                    }
+                }
+                break;
+            }
+        }
+        RUNNING.store(false, Ordering::SeqCst);
+    });
 }
 
 // ---------- usage counters ----------
@@ -1977,6 +2140,18 @@ pub fn seed_settings(s: &mut crate::settings::Settings) {
             s.ask.model = DEFAULT_MODEL.into();
         }
     }
+    if s.ask.seed_version < 3 {
+        s.ask.seed_version = 3;
+        let taken = s
+            .hotkeys
+            .modules
+            .values()
+            .chain([&s.hotkeys.toggle_island, &s.hotkeys.expand_island, &s.hotkeys.open_settings])
+            .any(|v| v.eq_ignore_ascii_case(SNIP_HOTKEY));
+        if !taken {
+            s.hotkeys.modules.entry("askSnip".into()).or_insert_with(|| SNIP_HOTKEY.into());
+        }
+    }
     if s.ask.seeded {
         return;
     }
@@ -2186,7 +2361,7 @@ mod tests {
         let mut s = old.clone();
         seed_settings(&mut s);
         assert_eq!(s.ask.model, DEFAULT_MODEL);
-        assert_eq!(s.ask.seed_version, 2);
+        assert_eq!(s.ask.seed_version, 3, "every later one-time change ran too");
         // Picked again by the user later: left alone.
         s.ask.model = "gemini-flash-latest".into();
         seed_settings(&mut s);
@@ -2728,6 +2903,59 @@ mod tests {
             println!("first words {} ms, done {} ms: {}", first.unwrap_or(0), t.elapsed().as_millis(), text.trim());
             let _ = std::fs::remove_dir_all(&dir);
         });
+    }
+
+    #[test]
+    fn pasted_pictures_are_saved_checked_and_sent() {
+        use base64::Engine;
+        // A 40x30 red PNG whose top-left 16x16 corner is transparent.
+        let mut img = image::RgbaImage::from_pixel(40, 30, image::Rgba([255, 0, 0, 255]));
+        for x in 0..16 {
+            for y in 0..16 {
+                img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
+            }
+        }
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&png);
+        let p = paste_picture(&format!("data:image/png;base64,{b64}")).unwrap();
+        assert_eq!((p.width, p.height), (40, 30));
+        assert!(p.thumb.starts_with("data:image/png;base64,"));
+        let saved = image::load_from_memory(&std::fs::read(&p.path).unwrap()).unwrap().to_rgb8();
+        let c = saved.get_pixel(4, 4).0;
+        assert!(c.iter().all(|v| *v > 240), "transparent becomes white, not black: {c:?}");
+        let r = saved.get_pixel(30, 20).0;
+        assert!(r[0] > 230 && r[1] < 30, "red stays red: {r:?}");
+        let a = picture_context(&p.path).unwrap();
+        assert_eq!(a.kind, "picture");
+        assert!(a.image.is_some());
+        let _ = std::fs::remove_file(&p.path);
+
+        assert!(paste_picture("not base64 at all!!").is_err());
+        assert!(paste_picture(&base64::engine::general_purpose::STANDARD.encode(b"hello")).unwrap_err().contains("isn't a picture"));
+        // Only Ask's own pictures can be sent: nothing else on the PC.
+        let outside = std::env::temp_dir().join("ask-outside.jpg");
+        std::fs::write(&outside, &png).unwrap();
+        assert!(picture_context(outside.to_str().unwrap()).unwrap_err().contains("only send pictures you pasted or snipped"));
+        let _ = std::fs::remove_file(&outside);
+        assert!(picture_context("C:\\does\\not\\exist.jpg").is_err());
+    }
+
+    #[test]
+    fn big_pictures_shrink_to_1600_on_the_long_side() {
+        let tall = image::DynamicImage::ImageRgb8(image::RgbImage::new(900, 3200));
+        let j = image::load_from_memory(&encode_jpeg(tall).unwrap()).unwrap();
+        assert_eq!((j.width(), j.height()), (450, 1600));
+    }
+
+    #[test]
+    fn snip_hotkey_is_added_once() {
+        let mut s: crate::settings::Settings = serde_json::from_value(json!({ "ask": { "seeded": true, "seedVersion": 2 } })).unwrap();
+        seed_settings(&mut s);
+        assert_eq!(s.hotkeys.modules.get("askSnip").map(String::as_str), Some(SNIP_HOTKEY));
+        s.hotkeys.modules.remove("askSnip");
+        seed_settings(&mut s);
+        assert!(s.hotkeys.modules.get("askSnip").is_none(), "removed by you: not added back");
     }
 
     /// Live check with the key saved in Settings → Ask (never printed):

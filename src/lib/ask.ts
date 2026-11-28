@@ -23,6 +23,19 @@ export const CONTEXT_LABEL: Record<AskContext, string> = { web: "Web", clipboard
 
 export type SearchProvider = "tavily" | "ollama";
 
+/** A picture waiting to go with the next question (pasted or snipped). */
+export interface AskPicture {
+  path: string;
+  /** Small PNG preview, data URL. */
+  thumb: string;
+  width: number;
+  height: number;
+}
+
+export const onAskPicture = (cb: (p: AskPicture) => void): Promise<UnlistenFn> => listen<AskPicture>("ask:picture", (e) => cb(e.payload));
+export const onAskPictureError = (cb: (msg: string) => void): Promise<UnlistenFn> =>
+  listen<string>("ask:picture-error", (e) => cb(e.payload));
+
 export interface AskView {
   messages: AskMsg[];
   /** Id of the reply still being written. */
@@ -63,7 +76,11 @@ export const ASK_MAX_INPUT = 12_000;
 
 export const askApi = {
   get: () => invoke<AskView>("ask_get"),
-  send: (text: string, attach: AskContext[] = []) => invoke<void>("ask_send", { text, attach }),
+  send: (text: string, attach: AskContext[] = [], pictures: string[] = []) => invoke<void>("ask_send", { text, attach, pictures }),
+  /** Save a pasted picture (base64 or data URL) for the next question. */
+  pastePicture: (data: string) => invoke<AskPicture>("ask_paste_picture", { data }),
+  /** Open Windows' snipping; the picture arrives as "ask:picture". */
+  snip: () => invoke<void>("ask_snip"),
   /** Title of the window Screen would picture ("" = none known). */
   screenTitle: () => invoke<string>("ask_screen_title"),
   /** Load the local model now, so the first answer doesn't wait for it. */

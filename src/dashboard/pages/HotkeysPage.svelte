@@ -22,6 +22,7 @@
     { key: "module:focus", label: "Start or pause the focus timer", def: "Ctrl+Alt+KeyF" },
     { key: "module:palette", label: "Search everything", def: "Ctrl+Alt+KeyK" }, // search-clipboard
     { key: "module:ask", label: "Open Ask", def: "Ctrl+Alt+KeyA" }, // ask-assistant
+    { key: "module:askSnip", label: "Snip part of the screen and ask about it", def: "Ctrl+Alt+KeyQ" }, // ask-assistant
   ];
 
   const valueOf = (key: string) =>

@@ -4,6 +4,8 @@
   and links open in the browser. Enter sends, Shift+Enter adds a line, and
   the button turns into Stop while an answer is being written.
   With no API key yet, the tab explains where to add one.
+  Pictures: paste one into the box (Ctrl+V) or press Snip (or its hotkey) to
+  drag over part of the screen; it waits above the box until you send.
   Stage 3: buttons above the box attach your latest copy, your Claude
   sessions or a picture of the window you were using to the next question
   (each one only when switched on in Settings → Ask). Answers can go to the
@@ -11,7 +13,7 @@
 -->
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { askApi, onAsk, onAskDelta, ASK_MAX_INPUT, CONTEXT_LABEL, PROVIDER_LABEL, type AskContext, type AskMsg, type AskView } from "../ask";
+  import { askApi, onAsk, onAskDelta, onAskPicture, onAskPictureError, ASK_MAX_INPUT, CONTEXT_LABEL, PROVIDER_LABEL, type AskContext, type AskMsg, type AskPicture, type AskView } from "../ask";
   import { boardApi } from "../tools.svelte";
   import { renderMarkdown } from "../markdown";
   import { settingsApi } from "../settings";
@@ -31,6 +33,42 @@
   let attach = $state<AskContext[]>([]);
   /** The window Screen would picture. */
   let screenTitle = $state("");
+  /** Pictures to send with the next question. */
+  let pictures = $state<AskPicture[]>([]);
+  let pasting = $state(false);
+  const MAX_PICTURES = 6;
+
+  function addPicture(p: AskPicture) {
+    if (pictures.length >= MAX_PICTURES) {
+      error = `Send at most ${MAX_PICTURES} pictures with one question.`;
+      return;
+    }
+    pictures = [...pictures, p];
+    error = "";
+  }
+
+  /** Ctrl+V: a picture on the clipboard waits above the box; text pastes as usual. */
+  async function paste(e: ClipboardEvent) {
+    const files = [...(e.clipboardData?.items ?? [])].filter((i) => i.kind === "file" && i.type.startsWith("image/")).map((i) => i.getAsFile()).filter((f): f is File => !!f);
+    if (!files.length) return;
+    e.preventDefault();
+    pasting = true;
+    try {
+      for (const f of files) {
+        const data = await new Promise<string>((ok, fail) => {
+          const r = new FileReader();
+          r.onload = () => ok(String(r.result));
+          r.onerror = () => fail(r.error);
+          r.readAsDataURL(f);
+        });
+        addPicture(await askApi.pastePicture(data));
+      }
+    } catch (err) {
+      error = String(err);
+    } finally {
+      pasting = false;
+    }
+  }
   let input = $state<HTMLTextAreaElement>();
   let log = $state<HTMLDivElement>();
   /** Keep the newest text in view unless you scrolled up to read. */
@@ -68,9 +106,13 @@
       if (m) m.text = text;
       follow();
     });
+    const un3 = onAskPicture((p) => {
+      addPicture(p);
+      tick().then(() => input?.focus());
+    });
+    const un4 = onAskPictureError((msg) => (error = msg));
     return () => {
-      un1.then((f) => f());
-      un2.then((f) => f());
+      for (const u of [un1, un2, un3, un4]) u.then((f) => f());
     };
   });
 
@@ -112,14 +154,16 @@
   }
 
   async function send(text = draft) {
-    const t = text.trim();
+    // A picture on its own gets a default question.
+    const t = text.trim() || (pictures.length ? "What's in this picture?" : "");
     if (!t || busy) return;
     error = "";
     stick = true;
     try {
-      await askApi.send(t, attach);
+      await askApi.send(t, attach, pictures.map((p) => p.path));
       draft = "";
       attach = [];
+      pictures = [];
       await tick();
       grow();
     } catch (e) {
@@ -273,8 +317,24 @@
 
     {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-    {#if view?.context.length}
-      <div class="context" role="group" aria-label="Send with the next question">
+    {#if pictures.length}
+      <div class="pics" role="list" aria-label="Pictures to send">
+        {#each pictures as p, i (p.path)}
+          <div class="pic" role="listitem">
+            <img src={p.thumb} alt="Picture {i + 1}, {p.width} by {p.height}" />
+            <button type="button" class="pic-x" aria-label="Remove picture {i + 1}" title="Remove" onclick={() => (pictures = pictures.filter((x) => x !== p))}>
+              <Icon name="x" size={12} />
+            </button>
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    <div class="context" role="group" aria-label="Send with the next question">
+      <button type="button" class="ctx" title="Drag over part of your screen; the picture comes here (Ctrl+Alt+Q from anywhere)" onclick={() => askApi.snip()}>
+        <Icon name="image" size={14} />Snip
+      </button>
+      {#if view?.context.length}
         {#each view.context as k}
           <button
             type="button"
@@ -296,8 +356,8 @@
             {CONTEXT_LABEL[k]}{#if k === "screen" && screenTitle}<span class="ctx-sub">· {screenTitle}</span>{/if}
           </button>
         {/each}
-      </div>
-    {/if}
+      {/if}
+    </div>
 
     <form class="composer" onsubmit={(e) => { e.preventDefault(); send(); }}>
       <textarea
@@ -305,9 +365,10 @@
         bind:value={draft}
         oninput={grow}
         onkeydown={keydown}
+        onpaste={paste}
         rows="1"
         maxlength={ASK_MAX_INPUT}
-        placeholder="Ask anything"
+        placeholder={pasting ? "Adding picture…" : pictures.length ? "Ask about the picture" : "Ask anything (Ctrl+V pastes pictures too)"}
         aria-label="Ask a question"
         spellcheck="true"
         data-lenis-prevent
@@ -315,7 +376,7 @@
       {#if busy}
         <GButton icon="stop" iconSize={16} ariaLabel="Stop answering" title="Stop" onclick={() => askApi.stop()} />
       {:else}
-        <GButton icon="send" iconSize={16} ariaLabel="Send" title="Send (Enter)" variant="filled" type="submit" disabled={!draft.trim()} />
+        <GButton icon="send" iconSize={16} ariaLabel="Send" title="Send (Enter)" variant="filled" type="submit" disabled={!draft.trim() && !pictures.length} />
       {/if}
     </form>
   </div>
@@ -383,6 +444,19 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .pics { display: flex; gap: var(--sp-6); flex-wrap: wrap; }
+  .pic { position: relative; width: 56px; height: 56px; border-radius: var(--r-control); overflow: hidden; background: var(--c-surface-card); flex: none; }
+  .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pic-x {
+    position: absolute; top: 2px; right: 2px;
+    width: 18px; height: 18px; padding: 0;
+    display: grid; place-items: center;
+    border: none; border-radius: 50%;
+    background: var(--c-scrim); color: var(--c-ink);
+    cursor: pointer;
+  }
+  .pic-x:hover { background: var(--c-err); color: var(--c-err-ink); }
+  .pic-x:focus-visible { outline: none; box-shadow: 0 0 0 var(--focus-width) var(--c-accent); }
   .context { display: flex; gap: var(--sp-6); flex-wrap: nowrap; overflow: hidden; }
   .ctx {
     display: inline-flex;
