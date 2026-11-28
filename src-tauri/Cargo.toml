@@ -96,4 +96,6 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_Performance",
   "Win32_System_Threading",
   "Win32_UI_WindowsAndMessaging",
+  # ask-assistant: picture of the window you were using (PrintWindow)
+  "Win32_Storage_Xps",
 ] }

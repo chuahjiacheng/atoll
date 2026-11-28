@@ -514,8 +514,38 @@ fn ask_get(app: AppHandle) -> ask::AskView {
 }
 
 #[tauri::command]
-fn ask_send(app: AppHandle, text: String) -> Result<(), String> {
-    ask::send(&app, text)
+fn ask_send(app: AppHandle, text: String, attach: Option<Vec<String>>) -> Result<(), String> {
+    ask::send(&app, text, attach.unwrap_or_default())
+}
+
+#[tauri::command]
+fn ask_warm(app: AppHandle) {
+    tauri::async_runtime::spawn(async move { ask::warm_local(&app).await });
+}
+
+#[tauri::command]
+fn ask_screen_title() -> String {
+    ask::screen_title()
+}
+
+#[tauri::command]
+fn ask_search_key_status(provider: String) -> ask::KeyStatus {
+    ask::search_key_status(&provider)
+}
+
+#[tauri::command]
+async fn ask_set_search_key(app: AppHandle, provider: String, key: String) -> Result<(), String> {
+    ask::set_search_key(&app, &provider, &key).await
+}
+
+#[tauri::command]
+fn ask_forget_search_key(app: AppHandle, provider: String) {
+    ask::forget_search_key(&app, &provider);
+}
+
+#[tauri::command]
+async fn ask_test_search_key(provider: String) -> Result<(), String> {
+    ask::test_search_key(&provider).await
 }
 
 #[tauri::command]
@@ -1346,6 +1376,12 @@ pub fn run() {
             ask_groq_models,
             ask_ollama_models,
             ask_usage,
+            ask_screen_title,
+            ask_warm,
+            ask_search_key_status,
+            ask_set_search_key,
+            ask_forget_search_key,
+            ask_test_search_key,
             // ---- ask-assistant: end ----
         ])
         .on_window_event(|window, event| {

@@ -204,7 +204,7 @@
     for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === "user") return msgs[i].text.replace(/\s+/g, " ");
     return "";
   });
-  const askWord = $derived(askWriting ? "Writing" : "Thinking");
+  const askWord = $derived(askWriting ? "Writing" : askState?.searching ? "Searching" : "Thinking");
   // ---- ask-assistant: end ----
   const soon = $derived(
     calOn && calStatus?.connected && agenda ? soonEvent(timed(agenda.events, now, false), now, settings?.calendar.pillMinutes ?? 10) : null,

@@ -58,6 +58,12 @@ pub struct AskSettings {
     pub ollama_model: String,
     /// Keep the chat on disk between restarts.
     pub keep_history: bool,
+    /// Stage 3: what Ask may attach when you ask it to (each off until you switch it on).
+    pub context_clipboard: bool,
+    pub context_sessions: bool,
+    pub context_screen: bool,
+    /// Web search service for the Web button: "tavily" | "ollama".
+    pub search_provider: String,
     /// One-time defaults (the Ask hotkey) have been added.
     pub seeded: bool,
     /// Later one-time changes applied (2 = default model moved to Flash-Lite).
@@ -75,6 +81,10 @@ impl Default for AskSettings {
             groq_model: String::new(),
             ollama_model: String::new(),
             keep_history: true,
+            context_clipboard: false,
+            context_sessions: false,
+            context_screen: false,
+            search_provider: "tavily".into(),
             seeded: false,
             seed_version: 2,
         }
@@ -805,6 +815,9 @@ impl Settings {
         self.calendar.days_ahead = self.calendar.days_ahead.clamp(1, 14);
         // ---- ask-assistant: begin ----
         self.ask.model = crate::ask::clean_model(&self.ask.model);
+        if !["tavily", "ollama"].contains(&self.ask.search_provider.as_str()) {
+            self.ask.search_provider = "tavily".into();
+        }
         if !["gemini", "groq", "ollama"].contains(&self.ask.provider.as_str()) {
             self.ask.provider = "gemini".into();
         }

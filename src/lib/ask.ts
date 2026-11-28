@@ -13,7 +13,15 @@ export interface AskMsg {
   model?: string;
   /** "gemini" | "groq" | "ollama" */
   provider?: string;
+  /** Context sent with a question. */
+  attached?: { kind: AskContext; label: string; sources?: { title: string; url: string }[] }[];
 }
+
+export type AskContext = "web" | "clipboard" | "sessions" | "screen";
+
+export const CONTEXT_LABEL: Record<AskContext, string> = { web: "Web", clipboard: "Clipboard", sessions: "Claude sessions", screen: "Screen" };
+
+export type SearchProvider = "tavily" | "ollama";
 
 export interface AskView {
   messages: AskMsg[];
@@ -24,6 +32,10 @@ export interface AskView {
   /** Main provider, and the model it is set to ("" = automatic). */
   provider: AskProvider;
   model: string;
+  /** Context switched on in Settings → Ask ("web" when a search key is saved). */
+  context: AskContext[];
+  /** The answer in progress is waiting on a web search. */
+  searching: boolean;
 }
 
 export type AskProvider = "gemini" | "groq" | "ollama";
@@ -51,7 +63,11 @@ export const ASK_MAX_INPUT = 12_000;
 
 export const askApi = {
   get: () => invoke<AskView>("ask_get"),
-  send: (text: string) => invoke<void>("ask_send", { text }),
+  send: (text: string, attach: AskContext[] = []) => invoke<void>("ask_send", { text, attach }),
+  /** Title of the window Screen would picture ("" = none known). */
+  screenTitle: () => invoke<string>("ask_screen_title"),
+  /** Load the local model now, so the first answer doesn't wait for it. */
+  warm: () => invoke<void>("ask_warm"),
   stop: () => invoke<void>("ask_stop"),
   clear: () => invoke<void>("ask_clear"),
   keyStatus: () => invoke<AskKeyStatus>("ask_key_status"),
@@ -65,6 +81,10 @@ export const askApi = {
   groqModels: () => invoke<string[]>("ask_groq_models"),
   ollamaModels: () => invoke<string[]>("ask_ollama_models"),
   usage: () => invoke<AskUsage>("ask_usage"),
+  searchKeyStatus: (provider: SearchProvider) => invoke<AskKeyStatus>("ask_search_key_status", { provider }),
+  setSearchKey: (provider: SearchProvider, key: string) => invoke<void>("ask_set_search_key", { provider, key }),
+  forgetSearchKey: (provider: SearchProvider) => invoke<void>("ask_forget_search_key", { provider }),
+  testSearchKey: (provider: SearchProvider) => invoke<void>("ask_test_search_key", { provider }),
   /** Opens an https link from a reply in the browser. */
   openLink: (url: string) => invoke<void>("calendar_open", { url }),
 };
@@ -78,3 +98,5 @@ export const onAskDelta = (cb: (d: { id: number; text: string }) => void): Promi
 export const AI_STUDIO_KEYS = "https://aistudio.google.com/app/apikey";
 export const GROQ_KEYS = "https://console.groq.com/keys";
 export const OLLAMA_DOWNLOAD = "https://ollama.com/download";
+export const TAVILY_KEYS = "https://app.tavily.com/home";
+export const OLLAMA_KEYS = "https://ollama.com/settings/keys";

@@ -2,7 +2,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import GButton from "../../lib/glass/GButton.svelte";
-  import { AI_STUDIO_KEYS, GROQ_KEYS, OLLAMA_DOWNLOAD, askApi, onAsk, type AskUsage } from "../../lib/ask";
+  import { AI_STUDIO_KEYS, GROQ_KEYS, OLLAMA_DOWNLOAD, OLLAMA_KEYS, TAVILY_KEYS, askApi, onAsk, type AskUsage, type SearchProvider } from "../../lib/ask";
   import type { Settings } from "../../lib/settings";
   import { change, toast } from "../store.svelte";
   import Section from "../ui/Section.svelte";
@@ -141,6 +141,67 @@
     {#if ollama && !ollama.running}<GButton label="Get Ollama" icon="external" iconSize={16} onclick={() => open(OLLAMA_DOWNLOAD)} />{/if}
   </Row>
   <SelectRow label="Local model" help="Thinking is turned off so answers start in seconds." value={s.ask.ollamaModel} options={ollamaOptions} onchange={(v) => change("ask.ollamaModel", v)} />
+</Section>
+
+<Section
+  title="Web search"
+  desc="Adds a Web button above the question box: Ask searches first, then any model answers from what it finds, with numbered sources. Gemini's own Google Search isn't free, so this uses a free search service with its own key."
+>
+  <SegRow
+    label="Search service"
+    help={s.ask.searchProvider === "ollama"
+      ? "Ollama's web search: free with an ollama.com account (Ollama doesn't publish the free limit)."
+      : "Tavily: 1,000 free searches a month, no card needed."}
+    items={[
+      { id: "tavily", label: "Tavily" },
+      { id: "ollama", label: "Ollama" },
+    ]}
+    value={s.ask.searchProvider}
+    onchange={(v) => change("ask.searchProvider", v)}
+  />
+  {#key s.ask.searchProvider}
+    {@const sp = s.ask.searchProvider as SearchProvider}
+    <ApiKeyRow
+      name={sp === "ollama" ? "Ollama search" : "Tavily"}
+      icon="search"
+      howTo={sp === "ollama"
+        ? "Sign in at ollama.com, open Settings → Keys, create a key and paste it here. Atoll tries one small search before saving."
+        : "Sign up at tavily.com (free, no card), copy the API key from your dashboard and paste it here. Atoll tries one small search before saving."}
+      status={() => askApi.searchKeyStatus(sp)}
+      save={(k) => askApi.setSearchKey(sp, k).then(() => [])}
+      forget={() => askApi.forgetSearchKey(sp)}
+      test={() => askApi.testSearchKey(sp).then(() => ["search"])}
+      onmodels={() => {}}
+    />
+    <Row label={sp === "ollama" ? "Get an Ollama key" : "Get a free Tavily key"} help="Opens the sign-up page in your browser.">
+      <GButton label={sp === "ollama" ? "Open ollama.com" : "Open Tavily"} icon="external" iconSize={16} onclick={() => open(sp === "ollama" ? OLLAMA_KEYS : TAVILY_KEYS)} />
+    </Row>
+  {/key}
+</Section>
+
+<Section
+  title="What Ask can see"
+  desc="Each switch adds a button above the question box. Nothing is sent unless you press the button for that question."
+>
+  <SwitchRow
+    label="Your latest copy"
+    help="Text, a copied picture or file names from your clipboard history. A copy Atoll marked as a secret (a token or password) is never sent."
+    checked={s.ask.contextClipboard}
+    onchange={(v) => change("ask.contextClipboard", v)}
+  />
+  <SwitchRow
+    label="Your Claude Code sessions"
+    help="Each session's project, what you asked it, its task list, what it's doing and its last message."
+    checked={s.ask.contextSessions}
+    disabled={!s.modules.claude}
+    onchange={(v) => change("ask.contextSessions", v)}
+  />
+  <SwitchRow
+    label="A picture of your window"
+    help="The window you were using before you opened Ask (open Ask with its hotkey so Atoll knows which one). Gemini only."
+    checked={s.ask.contextScreen}
+    onchange={(v) => change("ask.contextScreen", v)}
+  />
 </Section>
 
 <Section title="Used today" desc="Questions answered today, counted on this PC. Free limits are set per model by each provider and change over time.">

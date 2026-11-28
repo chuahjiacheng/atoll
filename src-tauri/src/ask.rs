@@ -75,6 +75,50 @@ pub struct Msg {
     /// "gemini", "groq" or "ollama".
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub provider: String,
+    /// What was attached to a question (clipboard, sessions, screen).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attached: Vec<Attached>,
+}
+
+/// Context sent along with one question.
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Attached {
+    /// "clipboard" | "sessions" | "screen"
+    pub kind: String,
+    /// Shown on the question, e.g. "Clipboard · const a = 1…".
+    pub label: String,
+    /// Text given to the model.
+    pub text: String,
+    /// A picture for the model (path to a PNG or JPEG on this PC).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
+    /// Web results behind the answer, numbered as the model cites them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<Source>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Source {
+    pub title: String,
+    pub url: String,
+}
+
+/// Longest context text sent with one question, in characters.
+pub const MAX_CONTEXT: usize = 20_000;
+
+/// The question as the model sees it: attached context first, then the question.
+pub fn prompt_text(m: &Msg) -> String {
+    if m.attached.is_empty() {
+        return m.text.clone();
+    }
+    let mut out = String::new();
+    for a in &m.attached {
+        out.push_str(&format!("<context source=\"{}\">\n{}\n</context>\n\n", a.kind, a.text.trim()));
+    }
+    out.push_str(&m.text);
+    out
 }
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -89,7 +133,7 @@ impl Chat {
     fn push(&mut self, role: Role, text: String, now: u64) -> u64 {
         self.next_id += 1;
         let id = self.next_id;
-        self.messages.push(Msg { id, role, text, at: now, error: None, model: String::new(), provider: String::new() });
+        self.messages.push(Msg { id, role, text, at: now, error: None, model: String::new(), provider: String::new(), attached: Vec::new() });
         if self.messages.len() > MAX_KEPT {
             let extra = self.messages.len() - MAX_KEPT;
             self.messages.drain(..extra);
@@ -133,9 +177,9 @@ pub fn gemini_contents(messages: &[Msg]) -> Vec<Value> {
         match out.last_mut() {
             Some((r, text)) if *r == m.role => {
                 text.push_str("\n\n");
-                text.push_str(&m.text);
+                text.push_str(&prompt_text(m));
             }
-            _ => out.push((m.role, m.text.clone())),
+            _ => out.push((m.role, prompt_text(m))),
         }
     }
     out.into_iter()
@@ -439,6 +483,8 @@ pub struct AskState {
     groq_models: Mutex<Vec<String>>,
     /// Today's request counts.
     usage: Mutex<Usage>,
+    /// A web search is running for the answer in progress.
+    searching: std::sync::atomic::AtomicBool,
     /// Id of the reply being written (0 = none).
     busy: AtomicU64,
     /// Bumped by every send and stop; a stream whose number is old stops writing.
@@ -457,6 +503,10 @@ pub struct AskView {
     /// Main provider and the model it is set to ("" = picked automatically).
     pub provider: String,
     pub model: String,
+    /// Context you allowed in Settings → Ask ("web", "clipboard", "sessions", "screen").
+    pub context: Vec<String>,
+    /// The answer in progress is waiting on a web search.
+    pub searching: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -530,7 +580,9 @@ pub fn view(app: &AppHandle) -> AskView {
     });
     let (provider, model, _) = choice(app);
     let has_key = provider_plan(&provider, true, load_key().is_some(), load_named(GROQ_KEY).is_some()).is_ok();
-    AskView { messages, busy: (busy != 0).then_some(busy), has_key, provider, model }
+    let context = allowed_context(app);
+    let searching = app.state::<AskState>().searching.load(Ordering::SeqCst);
+    AskView { messages, busy: (busy != 0).then_some(busy), has_key, provider, model, context, searching }
 }
 
 fn emit(app: &AppHandle) {
@@ -631,7 +683,7 @@ pub async fn models() -> Result<Vec<String>, String> {
 
 // ---------- asking ----------
 
-pub fn send(app: &AppHandle, text: String) -> Result<(), String> {
+pub fn send(app: &AppHandle, text: String, attach: Vec<String>) -> Result<(), String> {
     let text = text.trim().to_string();
     if text.is_empty() {
         return Err("Type a question first.".into());
@@ -644,26 +696,61 @@ pub fn send(app: &AppHandle, text: String) -> Result<(), String> {
         return Err("Still answering. Stop it first.".into());
     }
     let (main, _, backup) = choice(app);
-    let plan = provider_plan(&main, backup, load_key().is_some(), load_named(GROQ_KEY).is_some())?;
+    let mut plan = provider_plan(&main, backup, load_key().is_some(), load_named(GROQ_KEY).is_some())?;
+    let attached = gather(app, &attach)?;
+    let web = attach.iter().any(|k| k == "web");
+    if web && !allowed_context(app).iter().any(|k| k == "web") {
+        return Err("Add a web search key in Settings → Ask first.".into());
+    }
+    // Pictures go to Gemini, or to a local model that can see (checked when it
+    // starts); Groq's fast models can't.
+    if attached.iter().any(|a| a.image.is_some()) {
+        plan.retain(|p| *p != Provider::Groq);
+        if plan.is_empty() {
+            return Err("Pictures need Gemini or a local model that can see. Add a Gemini key in Settings → Ask, or ask without the picture.".into());
+        }
+    }
     let now = now_ms();
 
-    let (reply_id, contents) = with_chat(app, |c| {
+    let question = text.clone();
+    let (uid, reply_id) = with_chat(app, |c| {
         if c.is_stale(now) {
             c.clear();
         }
-        c.push(Role::User, text, now);
-        let contents = gemini_contents(&c.messages);
-        let id = c.push(Role::Assistant, String::new(), now);
-        (id, contents)
+        let uid = c.push(Role::User, text, now);
+        if let Some(m) = c.get_mut(uid) {
+            m.attached = attached;
+        }
+        (uid, c.push(Role::Assistant, String::new(), now))
     });
     state.busy.store(reply_id, Ordering::SeqCst);
+    state.searching.store(web, Ordering::SeqCst);
     let run = state.run.fetch_add(1, Ordering::SeqCst) + 1;
     save(app);
     emit(app);
 
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let result = answer(&app, &plan, contents, reply_id, run).await;
+        let result = async {
+            if web {
+                let found = web_search(&app, &question).await;
+                app.state::<AskState>().searching.store(false, Ordering::SeqCst);
+                if app.state::<AskState>().run.load(Ordering::SeqCst) != run {
+                    return Ok(());
+                }
+                let a = found?;
+                with_chat(&app, |c| {
+                    if let Some(m) = c.get_mut(uid) {
+                        m.attached.insert(0, a);
+                    }
+                });
+                save(&app);
+                emit(&app);
+            }
+            let contents = with_chat(&app, |c| build_contents(c, uid));
+            answer(&app, &plan, contents, reply_id, run).await
+        }
+        .await;
         let state = app.state::<AskState>();
         if state.run.load(Ordering::SeqCst) != run {
             return; // stopped: `stop` already tidied up
@@ -679,10 +766,27 @@ pub fn send(app: &AppHandle, text: String) -> Result<(), String> {
             c.updated_at = now_ms();
         });
         state.busy.store(0, Ordering::SeqCst);
+        state.searching.store(false, Ordering::SeqCst);
         save(&app);
         emit(&app);
     });
     Ok(())
+}
+
+/// What the model is sent: the chat, plus the pictures attached to question
+/// `uid` (older pictures are not re-sent).
+fn build_contents(c: &Chat, uid: u64) -> Vec<Value> {
+    let mut contents = gemini_contents(&c.messages);
+    if let (Some(last), Some(m)) = (contents.last_mut(), c.messages.iter().find(|m| m.id == uid)) {
+        for a in &m.attached {
+            if let Some(part) = a.image.as_deref().and_then(image_part) {
+                if let Some(parts) = last["parts"].as_array_mut() {
+                    parts.push(part);
+                }
+            }
+        }
+    }
+    contents
 }
 
 /// Stream one answer from Gemini into message `id`.
@@ -794,14 +898,92 @@ pub fn provider_plan(main: &str, backup: bool, gemini_key: bool, groq_key: bool)
 }
 
 /// Chat in the OpenAI format (Groq, Ollama), from the Gemini-format contents.
+/// Pictures in a Gemini-format message become `image_url` parts (data URLs),
+/// which Ollama's vision models read.
 pub fn openai_messages(contents: &[Value]) -> Vec<Value> {
     let mut out = vec![json!({ "role": "system", "content": SYSTEM_PROMPT })];
     for c in contents {
         let role = if c["role"] == "model" { "assistant" } else { "user" };
-        let text: String = c["parts"].as_array().map(|ps| ps.iter().filter_map(|p| p["text"].as_str()).collect()).unwrap_or_default();
-        out.push(json!({ "role": role, "content": text }));
+        let parts = c["parts"].as_array().cloned().unwrap_or_default();
+        let text: String = parts.iter().filter_map(|p| p["text"].as_str()).collect();
+        let images: Vec<Value> = parts
+            .iter()
+            .filter_map(|p| {
+                let d = p.get("inline_data")?;
+                Some(json!({ "type": "image_url", "image_url": { "url": format!("data:{};base64,{}", d["mime_type"].as_str()?, d["data"].as_str()?) } }))
+            })
+            .collect();
+        if images.is_empty() {
+            out.push(json!({ "role": role, "content": text }));
+        } else {
+            let mut content = vec![json!({ "type": "text", "text": text })];
+            content.extend(images);
+            out.push(json!({ "role": role, "content": content }));
+        }
     }
     out
+}
+
+/// A model turned down the thinking setting: one with no thinking mode
+/// ("does not support thinking") or that doesn't know the field.
+pub fn rejects_reasoning_setting(status: u16, body: &str) -> bool {
+    let low = body.to_lowercase();
+    status == 400 && (low.contains("reasoning") || low.contains("think"))
+}
+
+/// The chat has a picture in it.
+pub fn has_picture(contents: &[Value]) -> bool {
+    contents.iter().any(|c| c["parts"].as_array().is_some_and(|ps| ps.iter().any(|p| p.get("inline_data").is_some())))
+}
+
+/// What an Ollama model can do, from `/api/show` ("vision", "tools", "thinking"…).
+pub fn ollama_capabilities_from(show: &Value) -> Vec<String> {
+    show.get("capabilities").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default()
+}
+
+/// How long Ollama keeps the local model loaded after Ask uses it.
+const OLLAMA_KEEP_ALIVE: &str = "30m";
+
+/// Load the local model ahead of the question (opening the Ask tab), so the
+/// first answer doesn't wait for it: a cold start took 31 s, a warm one 0.3 s.
+pub async fn warm_local(app: &AppHandle) {
+    let (provider, picked) = {
+        let s = app.state::<crate::AppState>();
+        let s = s.settings.lock().unwrap();
+        (s.ask.provider.clone(), s.ask.ollama_model.clone())
+    };
+    if provider != "ollama" {
+        return;
+    }
+    let model = if picked.is_empty() {
+        match ollama_models().await.ok().and_then(|m| m.into_iter().next()) {
+            Some(m) => m,
+            None => return,
+        }
+    } else {
+        picked
+    };
+    if let Ok(c) = client() {
+        // An empty prompt only loads the model.
+        let _ = c
+            .post(format!("{OLLAMA_API}/api/generate"))
+            .json(&json!({ "model": model, "keep_alive": OLLAMA_KEEP_ALIVE }))
+            .timeout(Duration::from_secs(120))
+            .send()
+            .await;
+    }
+}
+
+async fn ollama_can_see(model: &str) -> Result<bool, String> {
+    let resp = client()?
+        .post(format!("{OLLAMA_API}/api/show"))
+        .json(&json!({ "model": model }))
+        .timeout(Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|_| "Ollama isn't running. Start Ollama, or pick another provider in Settings → Ask.".to_string())?;
+    let v: Value = resp.json().await.map_err(|_| "Ollama sent a reply Atoll couldn't read.".to_string())?;
+    Ok(ollama_capabilities_from(&v).iter().any(|c| c == "vision"))
 }
 
 /// Ask for little or no thinking where the model supports the setting
@@ -962,6 +1144,11 @@ async fn start_openai(app: &AppHandle, provider: Provider, contents: &[Value], r
             } else {
                 picked
             };
+            if has_picture(contents) && !ollama_can_see(&model).await? {
+                return Err(format!(
+                    "{model} can't look at pictures. Pick a local model that can (for example qwen3.5:4b or gemma4:e4b) in Settings → Ask, or ask without the picture."
+                ));
+            }
             (format!("{OLLAMA_API}/v1/chat/completions"), None, model)
         }
     };
@@ -994,7 +1181,7 @@ async fn start_openai(app: &AppHandle, provider: Provider, contents: &[Value], r
         }
         let body = resp.text().await.unwrap_or_default();
         // A model that doesn't take the thinking setting: ask again without it.
-        if reasoning.is_some() && status == 400 && body.to_lowercase().contains("reasoning") {
+        if reasoning.is_some() && rejects_reasoning_setting(status, &body) {
             reasoning = None;
             continue;
         }
@@ -1003,6 +1190,406 @@ async fn start_openai(app: &AppHandle, provider: Provider, contents: &[Value], r
         }
         return Err(openai_error(provider, status, &body, &model));
     }
+}
+
+// ---------- context (stage 3) ----------
+
+fn allowed_context(app: &AppHandle) -> Vec<String> {
+    let s = app.state::<crate::AppState>();
+    let s = s.settings.lock().unwrap();
+    let mut out = Vec::new();
+    if load_named(search_key_name(&s.ask.search_provider)).is_some() {
+        out.push("web".to_string());
+    }
+    if s.ask.context_clipboard {
+        out.push("clipboard".to_string());
+    }
+    if s.ask.context_sessions && s.modules.claude {
+        out.push("sessions".to_string());
+    }
+    if s.ask.context_screen {
+        out.push("screen".to_string());
+    }
+    out
+}
+
+/// Build what was asked for, refusing kinds switched off in Settings.
+fn gather(app: &AppHandle, kinds: &[String]) -> Result<Vec<Attached>, String> {
+    let allowed = allowed_context(app);
+    let mut out = Vec::new();
+    for k in kinds.iter().filter(|k| k.as_str() != "web") {
+        if !allowed.contains(k) {
+            return Err("That context is switched off in Settings → Ask.".into());
+        }
+        if out.iter().any(|a: &Attached| &a.kind == k) {
+            continue;
+        }
+        out.push(match k.as_str() {
+            "clipboard" => clipboard_context(&crate::clipboard::list(app))?,
+            "sessions" => {
+                let list = app.state::<crate::AppState>().sessions.lock().unwrap().snapshot();
+                sessions_context(&list)?
+            }
+            "screen" => screen_context()?,
+            _ => return Err("Unknown context.".into()),
+        });
+    }
+    Ok(out)
+}
+
+fn cap(text: &str) -> String {
+    if text.chars().count() <= MAX_CONTEXT {
+        text.to_string()
+    } else {
+        let mut t: String = text.chars().take(MAX_CONTEXT).collect();
+        t.push_str("\n[cut: too long]");
+        t
+    }
+}
+
+fn snippet(text: &str, n: usize) -> String {
+    let one: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if one.chars().count() <= n {
+        one
+    } else {
+        format!("{}…", one.chars().take(n).collect::<String>())
+    }
+}
+
+/// Your latest copy. A copy Atoll flagged as a secret is never sent.
+pub fn clipboard_context(items: &[crate::clipboard::Clip]) -> Result<Attached, String> {
+    let c = items.iter().max_by_key(|c| c.at).ok_or("Your clipboard history is empty. Copy something first.")?;
+    if let Some(kind) = &c.secret {
+        return Err(format!("Your latest copy looks like a secret ({kind}), so Ask won't send it."));
+    }
+    let base = Attached { kind: "clipboard".into(), ..Default::default() };
+    Ok(match c.kind.as_str() {
+        "image" => {
+            let path = c.image.clone().ok_or("That copied picture is no longer saved.")?;
+            let mut text = format!("The user copied a picture ({}×{}); it is attached.", c.width, c.height);
+            if let Some(o) = c.ocr.as_deref().filter(|o| !o.trim().is_empty()) {
+                text.push_str(&format!(" Text found in it:\n{}", cap(o)));
+            }
+            Attached { label: format!("Clipboard · picture {}×{}", c.width, c.height), text, image: Some(path), ..base }
+        }
+        "files" => {
+            let names: Vec<String> = c
+                .files
+                .iter()
+                .map(|f| std::path::Path::new(f).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| f.clone()))
+                .collect();
+            Attached {
+                label: format!("Clipboard · {} {}", names.len(), if names.len() == 1 { "file" } else { "files" }),
+                text: format!("The user copied these files:\n{}", c.files.join("\n")),
+                ..base
+            }
+        }
+        _ => {
+            let text = c.text.clone().unwrap_or_default();
+            if text.trim().is_empty() {
+                return Err("Your latest copy has no text.".into());
+            }
+            Attached { label: format!("Clipboard · {}", snippet(&text, 40)), text: cap(&text), ..base }
+        }
+    })
+}
+
+/// What your Claude Code sessions are doing.
+pub fn sessions_context(list: &[crate::sessions::Session]) -> Result<Attached, String> {
+    if list.is_empty() {
+        return Err("No Claude Code sessions right now.".into());
+    }
+    let mut text = String::from("The user's Claude Code sessions, newest first:\n");
+    for s in list.iter().take(6) {
+        text.push_str(&format!("\n- {} ({}): {:?}", if s.project.is_empty() { "unnamed" } else { &s.project }, s.source, s.status));
+        if let Some(p) = &s.prompt {
+            text.push_str(&format!("\n  Asked: {}", snippet(p, 300)));
+        }
+        if !s.plan.is_empty() {
+            let done = s.plan.iter().filter(|p| p.status == "completed").count();
+            text.push_str(&format!("\n  Task list: {done}/{} done", s.plan.len()));
+            if let Some(cur) = s.plan.iter().find(|p| p.status == "in_progress") {
+                text.push_str(&format!("; now: {}", snippet(&cur.content, 200)));
+            }
+        }
+        if let Some(a) = &s.activity {
+            text.push_str(&format!("\n  Doing: {} {}", a.label, snippet(&a.detail, 200)));
+        }
+        if let Some(m) = s.message.as_ref().or(s.answer.as_ref()) {
+            text.push_str(&format!("\n  Last message: {}", snippet(m, 600)));
+        }
+    }
+    let n = list.len();
+    Ok(Attached {
+        kind: "sessions".into(),
+        label: format!("Claude · {n} {}", if n == 1 { "session" } else { "sessions" }),
+        text: cap(&text),
+        ..Default::default()
+    })
+}
+
+fn shots_dir() -> PathBuf {
+    crate::paths::local_dir().join("ask").join("shots")
+}
+
+/// The window you were using before the island (picture, saved as JPEG).
+fn screen_context() -> Result<Attached, String> {
+    let hwnd = crate::paste::previous();
+    if hwnd.is_null() {
+        return Err("Atoll doesn't know which window you were using. Click into it, then open Ask with its hotkey.".into());
+    }
+    let title = window_title(hwnd);
+    let jpeg = capture_window(hwnd)?;
+    let dir = shots_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Couldn't save the picture: {e}"))?;
+    // Keep only the newest few pictures.
+    if let Ok(rd) = std::fs::read_dir(&dir) {
+        let mut files: Vec<_> = rd.filter_map(Result::ok).map(|e| e.path()).collect();
+        files.sort();
+        while files.len() >= 10 {
+            let _ = std::fs::remove_file(files.remove(0));
+        }
+    }
+    let path = dir.join(format!("{}.jpg", now_ms()));
+    std::fs::write(&path, jpeg).map_err(|e| format!("Couldn't save the picture: {e}"))?;
+    let name = if title.is_empty() { "the window".to_string() } else { format!("\u{201c}{}\u{201d}", snippet(&title, 80)) };
+    Ok(Attached {
+        kind: "screen".into(),
+        label: format!("Screen · {}", if title.is_empty() { "window".into() } else { snippet(&title, 40) }),
+        text: format!("A picture of {name}, the window the user was looking at, is attached."),
+        image: Some(path.to_string_lossy().into_owned()),
+        ..Default::default()
+    })
+}
+
+/// Title of the window Screen would capture (shown on the button).
+pub fn screen_title() -> String {
+    let hwnd = crate::paste::previous();
+    if hwnd.is_null() {
+        String::new()
+    } else {
+        window_title(hwnd)
+    }
+}
+
+fn window_title(hwnd: windows_sys::Win32::Foundation::HWND) -> String {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowTextW;
+    let mut buf = [0u16; 512];
+    let n = unsafe { GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32) };
+    String::from_utf16_lossy(&buf[..n.max(0) as usize])
+}
+
+/// Picture of one window, even when other windows (or the island) cover it,
+/// scaled to at most 1600 px wide and saved as JPEG.
+fn capture_window(hwnd: windows_sys::Win32::Foundation::HWND) -> Result<Vec<u8>, String> {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::Graphics::Gdi::*;
+    use windows_sys::Win32::Storage::Xps::PrintWindow;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, IsIconic};
+    const PW_RENDERFULLCONTENT: u32 = 2;
+    unsafe {
+        if IsIconic(hwnd) != 0 {
+            return Err("That window is minimised. Bring it back, then try again.".into());
+        }
+        let mut r: RECT = std::mem::zeroed();
+        if GetWindowRect(hwnd, &mut r) == 0 {
+            return Err("Couldn't find that window.".into());
+        }
+        let (w, h) = (r.right - r.left, r.bottom - r.top);
+        if w <= 0 || h <= 0 || w > 16384 || h > 16384 {
+            return Err("That window has no size to capture.".into());
+        }
+        let screen = GetDC(std::ptr::null_mut());
+        let dc = CreateCompatibleDC(screen);
+        let bmp = CreateCompatibleBitmap(screen, w, h);
+        let old = SelectObject(dc, bmp as _);
+        let ok = PrintWindow(hwnd, dc, PW_RENDERFULLCONTENT) != 0;
+        let mut info: BITMAPINFO = std::mem::zeroed();
+        info.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+        info.bmiHeader.biWidth = w;
+        info.bmiHeader.biHeight = -h; // top-down rows
+        info.bmiHeader.biPlanes = 1;
+        info.bmiHeader.biBitCount = 32;
+        info.bmiHeader.biCompression = BI_RGB;
+        let mut px = vec![0u8; (w * h * 4) as usize];
+        let rows = GetDIBits(dc, bmp, 0, h as u32, px.as_mut_ptr() as _, &mut info, DIB_RGB_COLORS);
+        SelectObject(dc, old);
+        DeleteObject(bmp as _);
+        DeleteDC(dc);
+        ReleaseDC(std::ptr::null_mut(), screen);
+        if !ok || rows == 0 {
+            return Err("Windows wouldn't give a picture of that window.".into());
+        }
+        encode_bgra_jpeg(&px, w as u32, h as u32)
+    }
+}
+
+/// BGRA pixels → JPEG, scaled down to 1600 px wide at most.
+pub fn encode_bgra_jpeg(bgra: &[u8], w: u32, h: u32) -> Result<Vec<u8>, String> {
+    let mut rgb = Vec::with_capacity((w * h * 3) as usize);
+    for p in bgra.chunks_exact(4) {
+        rgb.extend_from_slice(&[p[2], p[1], p[0]]);
+    }
+    let mut img = image::DynamicImage::ImageRgb8(image::RgbImage::from_raw(w, h, rgb).ok_or("Bad picture size.")?);
+    if w > 1600 {
+        img = img.resize(1600, u32::MAX, image::imageops::FilterType::Triangle);
+    }
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 82)
+        .encode_image(&img)
+        .map_err(|e| format!("Couldn't save the picture: {e}"))?;
+    Ok(out)
+}
+
+/// A Gemini part for a picture file (PNG or JPEG).
+fn image_part(path: &str) -> Option<Value> {
+    use base64::Engine;
+    let bytes = std::fs::read(path).ok()?;
+    let mime = if bytes.starts_with(&[0x89, b'P', b'N', b'G']) { "image/png" } else { "image/jpeg" };
+    Some(json!({ "inline_data": { "mime_type": mime, "data": base64::engine::general_purpose::STANDARD.encode(bytes) } }))
+}
+
+// ---------- web search (Tavily or Ollama's web search; both free with a key) ----------
+
+const TAVILY_KEY: &str = "ask.tavily.apiKey";
+const OLLAMA_SEARCH_KEY: &str = "ask.ollamaSearch.apiKey";
+/// Results given to the model per question.
+const SEARCH_RESULTS: usize = 5;
+/// Text kept from each result.
+const RESULT_CHARS: usize = 1500;
+
+fn search_key_name(provider: &str) -> &'static str {
+    if provider == "ollama" {
+        OLLAMA_SEARCH_KEY
+    } else {
+        TAVILY_KEY
+    }
+}
+
+fn search_label(provider: &str) -> &'static str {
+    if provider == "ollama" {
+        "Ollama web search"
+    } else {
+        "Tavily"
+    }
+}
+
+fn search_url(provider: &str) -> &'static str {
+    if provider == "ollama" {
+        "https://ollama.com/api/web_search"
+    } else {
+        "https://api.tavily.com/search"
+    }
+}
+
+pub fn search_body(provider: &str, query: &str) -> Value {
+    if provider == "ollama" {
+        json!({ "query": query, "max_results": SEARCH_RESULTS })
+    } else {
+        json!({ "query": query, "max_results": SEARCH_RESULTS, "search_depth": "basic", "include_answer": false })
+    }
+}
+
+/// Results from either service (both answer `{ "results": [{ title, url, content }] }`),
+/// as context for the model and numbered sources for the page.
+pub fn search_context(query: &str, reply: &Value) -> Result<Attached, String> {
+    let results: Vec<&Value> = reply.get("results").and_then(Value::as_array).map(|r| r.iter().collect()).unwrap_or_default();
+    let mut sources = Vec::new();
+    let mut text = format!(
+        "Web search results for \u{201c}{}\u{201d}. Use them when they help, and cite them inline as [n](url) with the number shown. Say so if they don't answer the question.\n",
+        snippet(query, 200)
+    );
+    for r in results.iter().take(SEARCH_RESULTS) {
+        let url = r.get("url").and_then(Value::as_str).unwrap_or("").trim();
+        if !url.starts_with("http") {
+            continue;
+        }
+        let title = r.get("title").and_then(Value::as_str).map(str::trim).filter(|t| !t.is_empty()).unwrap_or(url);
+        let content: String = r.get("content").and_then(Value::as_str).unwrap_or("").chars().take(RESULT_CHARS).collect();
+        sources.push(Source { title: snippet(title, 120), url: url.to_string() });
+        text.push_str(&format!("\n[{}] {}\n{}\n{}\n", sources.len(), title, url, content.trim()));
+    }
+    if sources.is_empty() {
+        return Err("The web search found nothing for that. Try other words, or ask without Web.".into());
+    }
+    let n = sources.len();
+    Ok(Attached { kind: "web".into(), label: format!("Web · {n} {}", if n == 1 { "result" } else { "results" }), text, image: None, sources })
+}
+
+pub fn search_error(provider: &str, status: u16, body: &str) -> String {
+    let who = search_label(provider);
+    let low = body.to_lowercase();
+    match status {
+        401 | 403 => format!("{who} didn't accept the API key. Check it in Settings → Ask."),
+        429 | 432 | 433 => format!("You've used {who}'s free searches for now. Try again later."),
+        500..=599 => format!("{who} is having trouble (error {status}). Try again in a moment."),
+        _ if low.contains("invalid") && low.contains("key") => format!("{who} didn't accept the API key. Check it in Settings → Ask."),
+        _ => format!("{who} search failed (error {status})."),
+    }
+}
+
+async fn search_with(provider: &str, key: &str, query: &str) -> Result<Value, String> {
+    let who = search_label(provider);
+    let resp = client()?
+        .post(search_url(provider))
+        .bearer_auth(key)
+        .json(&search_body(provider, query))
+        .timeout(Duration::from_secs(20))
+        .send()
+        .await
+        .map_err(|e| if e.is_timeout() { format!("{who} took too long to search.") } else { format!("Couldn't reach {who}. Check your internet connection.") })?;
+    let status = resp.status().as_u16();
+    let body = resp.text().await.unwrap_or_default();
+    if status != 200 {
+        return Err(search_error(provider, status, &body));
+    }
+    serde_json::from_str(&body).map_err(|_| format!("{who} sent a reply Atoll couldn't read."))
+}
+
+/// Search the web for `query` with the service picked in Settings → Ask.
+async fn web_search(app: &AppHandle, query: &str) -> Result<Attached, String> {
+    let provider = app.state::<crate::AppState>().settings.lock().unwrap().ask.search_provider.clone();
+    let key = load_named(search_key_name(&provider)).ok_or("Add a web search key in Settings → Ask first.")?;
+    let reply = search_with(&provider, &key, query).await?;
+    search_context(query, &reply)
+}
+
+pub fn search_key_status(provider: &str) -> KeyStatus {
+    match load_named(search_key_name(provider)) {
+        Some(k) => KeyStatus { has_key: true, masked: mask_key(&k) },
+        None => KeyStatus { has_key: false, masked: String::new() },
+    }
+}
+
+/// Check a search key with one small search, then keep it in Credential Manager.
+pub async fn set_search_key(app: &AppHandle, provider: &str, key: &str) -> Result<(), String> {
+    let key = key.trim();
+    if key.is_empty() {
+        return Err("Paste your API key first.".into());
+    }
+    if key.len() > 300 || key.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err("That doesn't look like an API key.".into());
+    }
+    search_with(provider, key, "weather today").await?;
+    named_entry(search_key_name(provider))
+        .ok_or("Windows Credential Manager is unavailable.")?
+        .set_password(key)
+        .map_err(|e| format!("Couldn't save to Windows Credential Manager: {e}"))?;
+    emit(app);
+    Ok(())
+}
+
+pub fn forget_search_key(app: &AppHandle, provider: &str) {
+    if let Some(e) = named_entry(search_key_name(provider)) {
+        let _ = e.delete_credential();
+    }
+    emit(app);
+}
+
+/// Test the saved key with one small search.
+pub async fn test_search_key(provider: &str) -> Result<(), String> {
+    let key = load_named(search_key_name(provider)).ok_or("Add a key first.")?;
+    search_with(provider, &key, "weather today").await.map(|_| ())
 }
 
 // ---------- usage counters ----------
@@ -1330,6 +1917,7 @@ async fn pump(app: &AppHandle, st: Started, id: u64, run: u64) -> Result<(), Str
 pub fn stop(app: &AppHandle) {
     let state = app.state::<AskState>();
     let id = state.busy.swap(0, Ordering::SeqCst);
+    state.searching.store(false, Ordering::SeqCst);
     state.run.fetch_add(1, Ordering::SeqCst);
     state.cancel.notify_waiters();
     if id != 0 {
@@ -1354,6 +1942,7 @@ pub fn stop(app: &AppHandle) {
 pub fn clear(app: &AppHandle) {
     stop(app);
     with_chat(app, Chat::clear);
+    let _ = std::fs::remove_dir_all(shots_dir());
     save(app);
     emit(app);
 }
@@ -1367,6 +1956,8 @@ pub fn clear_everything(app: &AppHandle) {
     *app.state::<AskState>().usage.lock().unwrap() = Usage::default();
     forget_key(app);
     forget_groq_key(app);
+    forget_search_key(app, "tavily");
+    forget_search_key(app, "ollama");
 }
 
 /// Settings changed (history switch or model): tidy and tell the island.
@@ -1421,7 +2012,7 @@ mod tests {
     use super::*;
 
     fn msg(id: u64, role: Role, text: &str) -> Msg {
-        Msg { id, role, text: text.into(), at: 0, error: None, model: String::new(), provider: String::new() }
+        Msg { id, role, text: text.into(), at: 0, error: None, model: String::new(), provider: String::new(), attached: Vec::new() }
     }
 
     #[test]
@@ -1744,6 +2335,398 @@ mod tests {
                 }
             }
             println!("first words {} ms, done {} ms: {}", first.unwrap_or(0), t.elapsed().as_millis(), text.trim());
+        });
+    }
+
+    fn clip(v: Value) -> crate::clipboard::Clip {
+        let mut base = json!({ "id": "c", "kind": "text", "at": 1 });
+        for (k, val) in v.as_object().unwrap() {
+            base[k] = val.clone();
+        }
+        serde_json::from_value(base).unwrap()
+    }
+
+    #[test]
+    fn clipboard_context_takes_newest_and_never_sends_secrets() {
+        let items = vec![
+            clip(json!({ "id": "old", "text": "older copy", "at": 1 })),
+            clip(json!({ "id": "new", "text": "fn main() {\n    println!(\"hi\");\n}", "at": 5 })),
+        ];
+        let a = clipboard_context(&items).unwrap();
+        assert_eq!(a.kind, "clipboard");
+        assert!(a.text.contains("println!"));
+        assert_eq!(a.label, "Clipboard · fn main() { println!(\"hi\"); }");
+        assert!(a.image.is_none());
+
+        let secret = vec![clip(json!({ "text": "ghp_••••", "secret": "GitHub token", "at": 9 }))];
+        assert!(clipboard_context(&secret).unwrap_err().contains("secret (GitHub token)"));
+        assert!(clipboard_context(&[]).unwrap_err().contains("empty"));
+
+        let pic = vec![clip(json!({ "kind": "image", "image": "C:\\x\\a.png", "width": 800, "height": 600, "ocr": "Total 42", "at": 2 }))];
+        let p = clipboard_context(&pic).unwrap();
+        assert_eq!(p.image.as_deref(), Some("C:\\x\\a.png"));
+        assert!(p.text.contains("Total 42"));
+        assert_eq!(p.label, "Clipboard · picture 800×600");
+
+        let files = vec![clip(json!({ "kind": "files", "files": ["C:\\a\\report.pdf", "C:\\a\\b.txt"], "at": 2 }))];
+        let f = clipboard_context(&files).unwrap();
+        assert_eq!(f.label, "Clipboard · 2 files");
+        assert!(f.text.contains("report.pdf"));
+
+        let long = vec![clip(json!({ "text": "x".repeat(MAX_CONTEXT + 50), "at": 3 }))];
+        assert!(clipboard_context(&long).unwrap().text.ends_with("[cut: too long]"));
+    }
+
+    #[test]
+    fn sessions_context_summarises_each_session() {
+        use crate::sessions::{Activity, PlanStep, Session, Status};
+        let step = |c: &str, st: &str| PlanStep { content: c.into(), status: st.into(), id: String::new() };
+        let s = Session {
+            id: "1".into(),
+            project: "twocodeclone".into(),
+            cwd: "C:\\x".into(),
+            source: "desktop".into(),
+            status: Status::Working,
+            activity: Some(Activity { kind: "edit".into(), label: "Editing".into(), detail: "ask.rs".into(), active: true }),
+            plan: vec![step("Study code", "completed"), step("Write context", "in_progress"), step("Test", "pending")],
+            message: None,
+            prompt: Some("start stage 3".into()),
+            answer: None,
+            tool_count: 4,
+            ask: None,
+            started_at: 0,
+            updated_at: 0,
+        };
+        let a = sessions_context(&[s]).unwrap();
+        assert_eq!(a.label, "Claude · 1 session");
+        for want in ["twocodeclone (desktop): Working", "Asked: start stage 3", "Task list: 1/3 done; now: Write context", "Doing: Editing ask.rs"] {
+            assert!(a.text.contains(want), "{want} missing in:\n{}", a.text);
+        }
+        assert!(sessions_context(&[]).unwrap_err().contains("No Claude Code sessions"));
+    }
+
+    #[test]
+    fn context_goes_before_the_question_in_every_format() {
+        let mut q = msg(1, Role::User, "what does this do?");
+        q.attached = vec![Attached { kind: "clipboard".into(), label: "x".into(), text: "let a = 1;".into(), ..Default::default() }];
+        let t = prompt_text(&q);
+        assert_eq!(t, "<context source=\"clipboard\">\nlet a = 1;\n</context>\n\nwhat does this do?");
+        let g = gemini_contents(&[q.clone()]);
+        assert_eq!(g[0]["parts"][0]["text"], t.as_str());
+        let o = openai_messages(&g);
+        assert_eq!(o[1]["content"], t.as_str());
+        // Without context the question is sent as typed.
+        assert_eq!(prompt_text(&msg(2, Role::User, "hi")), "hi");
+    }
+
+    #[test]
+    fn pictures_scale_down_and_become_jpeg() {
+        // 2000×10 blue pixels (BGRA).
+        let bgra: Vec<u8> = std::iter::repeat([255u8, 0, 0, 255]).take(2000 * 10).flatten().collect();
+        let jpeg = encode_bgra_jpeg(&bgra, 2000, 10).unwrap();
+        assert!(jpeg.starts_with(&[0xFF, 0xD8]), "JPEG header");
+        let img = image::load_from_memory(&jpeg).unwrap();
+        assert_eq!(img.width(), 1600);
+        let px = img.to_rgb8().get_pixel(800, 4).0;
+        assert!(px[2] > 200 && px[0] < 60, "blue stays blue (BGRA order handled): {px:?}");
+        let dir = std::env::temp_dir().join(format!("ask-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("p.jpg");
+        std::fs::write(&f, &jpeg).unwrap();
+        let part = image_part(f.to_str().unwrap()).unwrap();
+        assert_eq!(part["inline_data"]["mime_type"], "image/jpeg");
+        assert!(part["inline_data"]["data"].as_str().unwrap().len() > 100);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Picture of the foreground window (kept on this PC, checked it isn't
+    /// blank), then a real Gemini answer about a made-up picture:
+    /// `cargo test -p crest --lib probe_screen -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn probe_screen() {
+        let hwnd = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+        let t = std::time::Instant::now();
+        let jpeg = capture_window(hwnd).expect("capture failed");
+        let img = image::load_from_memory(&jpeg).unwrap().to_luma8();
+        let (mut lo, mut hi) = (255u8, 0u8);
+        for p in img.pixels() {
+            lo = lo.min(p.0[0]);
+            hi = hi.max(p.0[0]);
+        }
+        println!("captured the foreground window: {}x{}, {} KB in {} ms, brightness range {lo}..{hi} (blank would be one value)", img.width(), img.height(), jpeg.len() / 1024, t.elapsed().as_millis());
+
+        // A made-up 64x64 picture: solid orange.
+        let bgra: Vec<u8> = std::iter::repeat([0u8, 140, 255, 255]).take(64 * 64).flatten().collect();
+        let dir = std::env::temp_dir().join("ask-probe");
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("orange.jpg");
+        std::fs::write(&f, encode_bgra_jpeg(&bgra, 64, 64).unwrap()).unwrap();
+        let key = load_key().expect("no Gemini key saved");
+        let mut contents = vec![json!({ "role": "user", "parts": [{ "text": "What single colour fills this picture? One word." }] })];
+        contents[0]["parts"].as_array_mut().unwrap().push(image_part(f.to_str().unwrap()).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let t = std::time::Instant::now();
+            let (m, o) = try_model(key, DEFAULT_MODEL.into(), contents, true).await;
+            match o {
+                Attempt::Ok(mut r, _) => {
+                    let mut p = SseParser::default();
+                    let mut text = String::new();
+                    while let Ok(Some(b)) = r.chunk().await {
+                        for ev in p.push(&b) {
+                            text.push_str(&chunk_text(&ev).unwrap_or_default());
+                        }
+                    }
+                    println!("{m} in {} ms: {}", t.elapsed().as_millis(), text.trim());
+                }
+                Attempt::Failed(s, b) => println!("{m} failed {s}: {}", b.chars().take(200).collect::<String>()),
+                Attempt::Offline(e) => println!("{e}"),
+            }
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Web search: `cargo test -p crest --lib probe_search -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn probe_search() {
+        let key = load_key().expect("no Gemini key saved");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            for (model, search) in [("gemini-flash-lite-latest", false), ("gemini-flash-lite-latest", true)] {
+                let mut body = json!({
+                    "contents": [{ "role": "user", "parts": [{ "text": "What is today's top news headline in Malaysia? One sentence." }] }],
+                    "generationConfig": { "thinkingConfig": { "thinkingLevel": "minimal" } },
+                });
+                if search {
+                    body["tools"] = json!([{ "google_search": {} }]);
+                }
+                let t = std::time::Instant::now();
+                let r = client().unwrap()
+                    .post(format!("{API}/models/{model}:streamGenerateContent?alt=sse"))
+                    .header("x-goog-api-key", &key).json(&body).send().await.unwrap();
+                let status = r.status().as_u16();
+                let head = t.elapsed().as_millis();
+                let text = r.text().await.unwrap_or_default();
+                let mut p = SseParser::default();
+                let evs = p.push(text.as_bytes());
+                let mut answer = String::new();
+                let mut meta = String::new();
+                for e in &evs {
+                    answer.push_str(&chunk_text(e).unwrap_or_default());
+                    if e.contains("groundingMetadata") {
+                        let v: Value = serde_json::from_str(e).unwrap_or_default();
+                        meta = v.pointer("/candidates/0/groundingMetadata").map(|m| m.to_string()).unwrap_or_default();
+                    }
+                }
+                let short: String = if status == 200 { answer.trim().chars().take(200).collect() } else { text.chars().take(1500).collect() };
+                println!("{model} search={search}: {status} headers {head} ms, done {} ms: {}", t.elapsed().as_millis(), short.replace('\n', " "));
+                println!("   meta: {}", meta.chars().take(700).collect::<String>());
+            }
+        });
+    }
+
+    #[test]
+    fn web_results_become_numbered_sources() {
+        // Tavily and Ollama both answer in this shape.
+        let reply = json!({ "query": "q", "results": [
+            { "title": "Malaysia budget 2027 announced", "url": "https://www.thestar.com.my/news/budget", "content": "The budget was tabled on Friday.", "score": 0.9 },
+            { "title": "", "url": "https://example.org/page", "content": "x".repeat(RESULT_CHARS + 500) },
+            { "title": "No link", "url": "javascript:alert(1)", "content": "skipped" },
+            { "title": "Fourth", "url": "https://four.example", "content": "four" }
+        ]});
+        let a = search_context("malaysia budget", &reply).unwrap();
+        assert_eq!(a.kind, "web");
+        assert_eq!(a.label, "Web · 3 results");
+        assert_eq!(a.sources.len(), 3);
+        assert_eq!(a.sources[0], Source { title: "Malaysia budget 2027 announced".into(), url: "https://www.thestar.com.my/news/budget".into() });
+        assert_eq!(a.sources[1].title, "https://example.org/page", "no title: the link stands in");
+        assert_eq!(a.sources[2].url, "https://four.example", "a non-web link is skipped and numbering stays in order");
+        assert!(a.text.contains("[1] Malaysia budget 2027 announced\nhttps://www.thestar.com.my/news/budget\nThe budget was tabled on Friday."));
+        assert!(a.text.contains("[3] Fourth"));
+        assert!(!a.text.contains("javascript:"));
+        assert!(!a.text.contains(&"x".repeat(RESULT_CHARS + 1)), "each result is cut to RESULT_CHARS");
+        assert!(a.text.contains("cite them inline as [n](url)"));
+        assert!(search_context("q", &json!({ "results": [] })).unwrap_err().contains("found nothing"));
+        assert!(search_context("q", &json!({ "detail": "x" })).is_err());
+    }
+
+    #[test]
+    fn search_requests_and_errors() {
+        assert_eq!(search_body("tavily", "q")["search_depth"], "basic");
+        assert_eq!(search_body("tavily", "q")["max_results"], SEARCH_RESULTS);
+        assert!(search_body("ollama", "q").get("search_depth").is_none());
+        assert_eq!(search_url("ollama"), "https://ollama.com/api/web_search");
+        assert_eq!(search_key_name("ollama"), OLLAMA_SEARCH_KEY);
+        assert_eq!(search_key_name("anything else"), TAVILY_KEY);
+        // Real replies to a bad key on 2026-11-27.
+        assert!(search_error("tavily", 401, r#"{"detail":{"error":"Unauthorized: missing or invalid API key."}}"#).contains("Tavily didn't accept the API key"));
+        assert!(search_error("ollama", 401, r#"{"error":"Unauthorized"}"#).contains("Ollama web search didn't accept the API key"));
+        assert!(search_error("tavily", 432, "").contains("free searches"));
+        assert!(search_error("ollama", 503, "").contains("having trouble"));
+    }
+
+    #[test]
+    fn web_results_reach_the_model_before_the_question() {
+        let mut chat = Chat::default();
+        let uid = chat.push(Role::User, "who won?".into(), 1);
+        let reply = json!({ "results": [{ "title": "Final score", "url": "https://news.example/final", "content": "Team A won 2-1." }] });
+        chat.get_mut(uid).unwrap().attached.insert(0, search_context("who won?", &reply).unwrap());
+        chat.push(Role::Assistant, String::new(), 1); // the reply being written
+        let contents = build_contents(&chat, uid);
+        assert_eq!(contents.len(), 1, "the empty reply isn't sent");
+        let text = contents[0]["parts"][0]["text"].as_str().unwrap();
+        assert!(text.starts_with("<context source=\"web\">"));
+        assert!(text.contains("Team A won 2-1."));
+        assert!(text.ends_with("who won?"));
+    }
+
+    /// Citations: `cargo test -p crest --lib probe_cite -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn probe_cite() {
+        let key = load_key().expect("no Gemini key saved");
+        let mut chat = Chat::default();
+        let uid = chat.push(Role::User, "When does the Atoll test library close on Fridays?".into(), 1);
+        let reply = json!({ "results": [
+            { "title": "Atoll Test Library opening hours", "url": "https://library.example/hours", "content": "Monday to Thursday 9am-8pm. Friday 9am-5pm. Closed on weekends." },
+            { "title": "Library news", "url": "https://library.example/news", "content": "New reading room opens in March." }
+        ]});
+        chat.get_mut(uid).unwrap().attached.insert(0, search_context("library friday hours", &reply).unwrap());
+        let mut contents = build_contents(&chat, uid);
+        let body_contents = std::mem::take(&mut contents);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let t = std::time::Instant::now();
+            let (m, o) = try_model(key, DEFAULT_MODEL.into(), body_contents, true).await;
+            if let Attempt::Ok(mut r, _) = o {
+                let mut p = SseParser::default();
+                let mut text = String::new();
+                while let Ok(Some(b)) = r.chunk().await {
+                    for ev in p.push(&b) {
+                        text.push_str(&chunk_text(&ev).unwrap_or_default());
+                    }
+                }
+                println!("{m} in {} ms: {}", t.elapsed().as_millis(), text.trim());
+            } else {
+                println!("{m}: did not answer");
+            }
+        });
+    }
+
+    /// Real web search + answer: `cargo test -p crest --lib probe_web -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn probe_web() {
+        let skey = load_named(TAVILY_KEY).expect("no Tavily key saved");
+        let gkey = load_key().expect("no Gemini key saved");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let q = "What is the latest stable version of the Rust programming language?";
+            let t = std::time::Instant::now();
+            let reply = search_with("tavily", &skey, q).await;
+            let reply = match reply {
+                Ok(r) => r,
+                Err(e) => return println!("search failed: {e}"),
+            };
+            let a = search_context(q, &reply).unwrap();
+            println!("search {} ms, {}: {:?}", t.elapsed().as_millis(), a.label, a.sources.iter().map(|s| s.url.as_str()).collect::<Vec<_>>());
+            let mut chat = Chat::default();
+            let uid = chat.push(Role::User, q.into(), 1);
+            chat.get_mut(uid).unwrap().attached.insert(0, a);
+            let t = std::time::Instant::now();
+            let (m, o) = try_model(gkey, DEFAULT_MODEL.into(), build_contents(&chat, uid), true).await;
+            if let Attempt::Ok(mut r, _) = o {
+                let mut p = SseParser::default();
+                let mut text = String::new();
+                while let Ok(Some(b)) = r.chunk().await {
+                    for ev in p.push(&b) {
+                        text.push_str(&chunk_text(&ev).unwrap_or_default());
+                    }
+                }
+                println!("{m} {} ms: {}", t.elapsed().as_millis(), text.trim());
+            } else {
+                println!("{m}: did not answer");
+            }
+        });
+    }
+
+    #[test]
+    fn pictures_go_to_local_models_as_data_urls() {
+        let contents = vec![
+            json!({ "role": "user", "parts": [{ "text": "earlier" }] }),
+            json!({ "role": "model", "parts": [{ "text": "ok" }] }),
+            json!({ "role": "user", "parts": [{ "text": "what is this?" }, { "inline_data": { "mime_type": "image/jpeg", "data": "QUJD" } }] }),
+        ];
+        assert!(has_picture(&contents));
+        assert!(!has_picture(&contents[..2]));
+        let m = openai_messages(&contents);
+        assert_eq!(m[1]["content"], "earlier", "text-only turns stay plain strings");
+        let last = &m[3]["content"];
+        assert_eq!(last[0], json!({ "type": "text", "text": "what is this?" }));
+        assert_eq!(last[1]["type"], "image_url");
+        assert_eq!(last[1]["image_url"]["url"], "data:image/jpeg;base64,QUJD");
+        // The real /api/show reply for qwen3.5:9b on this PC.
+        let show = json!({ "capabilities": ["completion", "vision", "tools", "thinking"] });
+        assert!(ollama_capabilities_from(&show).contains(&"vision".to_string()));
+        assert!(ollama_capabilities_from(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn models_without_thinking_are_asked_again_plainly() {
+        assert!(rejects_reasoning_setting(400, r#"{"error":"\"gemma3:4b\" does not support thinking"}"#));
+        assert!(rejects_reasoning_setting(400, r#"{"error":{"message":"reasoning_effort is not supported"}}"#));
+        assert!(!rejects_reasoning_setting(400, r#"{"error":"model not found"}"#));
+        assert!(!rejects_reasoning_setting(500, "thinking"));
+    }
+
+    /// A picture to the local model: `cargo test -p crest --lib probe_local_vision -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn probe_local_vision() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let model = ollama_models().await.expect("Ollama not running").into_iter().next().expect("no models");
+            println!("{model} can see: {}", ollama_can_see(&model).await.unwrap());
+            // A made-up 64x64 picture: solid green.
+            let bgra: Vec<u8> = std::iter::repeat([40u8, 200, 40, 255]).take(64 * 64).flatten().collect();
+            let dir = std::env::temp_dir().join("ask-probe-local");
+            std::fs::create_dir_all(&dir).unwrap();
+            let f = dir.join("green.jpg");
+            std::fs::write(&f, encode_bgra_jpeg(&bgra, 64, 64).unwrap()).unwrap();
+            let mut contents = vec![json!({ "role": "user", "parts": [{ "text": "What single colour fills this picture? One word." }] })];
+            contents[0]["parts"].as_array_mut().unwrap().push(image_part(f.to_str().unwrap()).unwrap());
+            let t = std::time::Instant::now();
+            let mut r = client()
+                .unwrap()
+                .post(format!("{OLLAMA_API}/v1/chat/completions"))
+                .json(&openai_body(&model, &openai_messages(&contents), reasoning_setting(Provider::Ollama, &model)))
+                .send()
+                .await
+                .unwrap();
+            println!("status {}", r.status());
+            let mut p = SseParser::default();
+            let (mut text, mut first) = (String::new(), None);
+            'outer: while let Ok(Some(b)) = r.chunk().await {
+                for ev in p.push(&b) {
+                    match openai_chunk_text(&ev) {
+                        Ok(Some(piece)) => {
+                            if first.is_none() && !piece.is_empty() {
+                                first = Some(t.elapsed().as_millis());
+                            }
+                            text.push_str(&piece);
+                        }
+                        Ok(None) => break 'outer,
+                        Err(e) => {
+                            println!("error {e}");
+                            break 'outer;
+                        }
+                    }
+                }
+            }
+            println!("first words {} ms, done {} ms: {}", first.unwrap_or(0), t.elapsed().as_millis(), text.trim());
+            let _ = std::fs::remove_dir_all(&dir);
         });
     }
 

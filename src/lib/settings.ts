@@ -197,6 +197,12 @@ export interface Settings {
     /** "" = the first model installed */
     ollamaModel: string;
     keepHistory: boolean;
+    /** What Ask may attach when you press its button (each off until switched on). */
+    contextClipboard: boolean;
+    contextSessions: boolean;
+    contextScreen: boolean;
+    /** Web search service for the Web button. */
+    searchProvider: "tavily" | "ollama";
     seeded: boolean;
     seedVersion: number;
   };

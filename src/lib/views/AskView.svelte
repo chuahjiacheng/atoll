@@ -4,10 +4,15 @@
   and links open in the browser. Enter sends, Shift+Enter adds a line, and
   the button turns into Stop while an answer is being written.
   With no API key yet, the tab explains where to add one.
+  Stage 3: buttons above the box attach your latest copy, your Claude
+  sessions or a picture of the window you were using to the next question
+  (each one only when switched on in Settings → Ask). Answers can go to the
+  whiteboard.
 -->
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { askApi, onAsk, onAskDelta, ASK_MAX_INPUT, PROVIDER_LABEL, type AskMsg, type AskView } from "../ask";
+  import { askApi, onAsk, onAskDelta, ASK_MAX_INPUT, CONTEXT_LABEL, PROVIDER_LABEL, type AskContext, type AskMsg, type AskView } from "../ask";
+  import { boardApi } from "../tools.svelte";
   import { renderMarkdown } from "../markdown";
   import { settingsApi } from "../settings";
   import GButton from "../glass/GButton.svelte";
@@ -21,6 +26,11 @@
   let draft = $state("");
   let error = $state("");
   let copied = $state<number | null>(null);
+  let boarded = $state<number | null>(null);
+  /** Context to send with the next question. */
+  let attach = $state<AskContext[]>([]);
+  /** The window Screen would picture. */
+  let screenTitle = $state("");
   let input = $state<HTMLTextAreaElement>();
   let log = $state<HTMLDivElement>();
   /** Keep the newest text in view unless you scrolled up to read. */
@@ -40,13 +50,18 @@
   const SUGGESTIONS = ["Explain a regex", "Write a commit message", "Summarise a paragraph"];
 
   function apply(v: AskView) {
+    const screenNew = !view?.context.includes("screen") && v.context.includes("screen");
     view = v;
     messages = v.messages;
+    // A context switched off in Settings is dropped from the next question.
+    attach = attach.filter((k) => v.context.includes(k));
+    if (screenNew) refreshScreen();
     follow();
   }
 
   onMount(() => {
     askApi.get().then(apply).catch((e) => (error = String(e)));
+    askApi.warm().catch(() => {});
     const un1 = onAsk(apply);
     const un2 = onAskDelta(({ id, text }) => {
       const m = messages.find((x) => x.id === id);
@@ -61,6 +76,28 @@
 
   export function focus() {
     input?.focus();
+    refreshScreen();
+    askApi.warm().catch(() => {});
+  }
+
+  function refreshScreen() {
+    if (view?.context.includes("screen")) askApi.screenTitle().then((t) => (screenTitle = t)).catch(() => {});
+  }
+
+  function toggle(k: AskContext) {
+    attach = attach.includes(k) ? attach.filter((x) => x !== k) : [...attach, k];
+    if (k === "screen") refreshScreen();
+    input?.focus();
+  }
+
+  async function toBoard(m: AskMsg) {
+    try {
+      await boardApi.addText(m.text, 24, 24);
+      boarded = m.id;
+      setTimeout(() => boarded === m.id && (boarded = null), 1500);
+    } catch (e) {
+      error = String(e);
+    }
   }
 
   async function follow() {
@@ -80,8 +117,9 @@
     error = "";
     stick = true;
     try {
-      await askApi.send(t);
+      await askApi.send(t, attach);
       draft = "";
+      attach = [];
       await tick();
       grow();
     } catch (e) {
@@ -110,6 +148,23 @@
       setTimeout(() => copied === id && (copied = null), 1500);
     } catch {
       error = "Couldn't copy.";
+    }
+  }
+
+  /** Web sources behind an answer: those attached to the question before it. */
+  function sourcesFor(m: AskMsg): { title: string; url: string }[] {
+    const i = messages.indexOf(m);
+    for (let j = i - 1; j >= 0; j--) {
+      if (messages[j].role === "user") return messages[j].attached?.find((a) => a.kind === "web")?.sources ?? [];
+    }
+    return [];
+  }
+
+  function host(url: string): string {
+    try {
+      return new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      return url;
     }
   }
 
@@ -173,19 +228,38 @@
       {/if}
       {#each messages as m (m.id)}
         {#if m.role === "user"}
-          <div class="msg user"><div class="bubble">{m.text}</div></div>
+          <div class="msg user">
+            {#if m.attached?.length}
+              <div class="attached">
+                {#each m.attached as a}<span class="att" title="Sent with this question">{a.label}</span>{/each}
+              </div>
+            {/if}
+            <div class="bubble">{m.text}</div>
+          </div>
         {:else}
           <div class="msg assistant">
             {#if m.text}
               <div class="md">{@html renderMarkdown(m.text)}</div>
             {:else if busy === m.id}
-              <div class="thinking" role="status"><span class="word">Thinking</span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+              <div class="thinking" role="status"><span class="word">{view?.searching ? "Searching the web" : "Thinking"}</span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            {/if}
+            {#if m.text && sourcesFor(m).length}
+              <ol class="sources" aria-label="Sources">
+                {#each sourcesFor(m) as src, i}
+                  <li>
+                    <a href={src.url} data-href={src.url} title={src.url}><span class="n">{i + 1}</span>{src.title}<span class="host">{host(src.url)}</span></a>
+                  </li>
+                {/each}
+              </ol>
             {/if}
             {#if m.error}<p class="msg-error" class:stopped={m.error === "Stopped."} role={m.error === "Stopped." ? undefined : "alert"}>{m.error}</p>{/if}
             {#if m.text && busy !== m.id}
               <div class="tools">
                 <button type="button" class="tool" onclick={() => copy(m.text, m.id)} title="Copy the answer">
                   <Icon name={copied === m.id ? "check" : "copy"} size={14} />{copied === m.id ? "Copied" : "Copy"}
+                </button>
+                <button type="button" class="tool" onclick={() => toBoard(m)} title="Put the answer on the whiteboard">
+                  <Icon name={boarded === m.id ? "check" : "whiteboard"} size={14} />{boarded === m.id ? "On the board" : "To board"}
                 </button>
                 {#if via(m)}
                   <span class="via" title="The main choice couldn't answer, so this one did">{via(m)}</span>
@@ -198,6 +272,32 @@
     </div>
 
     {#if error}<p class="error" role="alert">{error}</p>{/if}
+
+    {#if view?.context.length}
+      <div class="context" role="group" aria-label="Send with the next question">
+        {#each view.context as k}
+          <button
+            type="button"
+            class="ctx"
+            class:on={attach.includes(k)}
+            aria-pressed={attach.includes(k)}
+            title={k === "web"
+              ? "Search the web first and answer from what it finds"
+              : k === "screen"
+              ? screenTitle
+                ? `Send a picture of “${screenTitle}” (Gemini only)`
+                : "Send a picture of the window you were using (Gemini only)"
+              : k === "clipboard"
+                ? "Send your latest copy"
+                : "Send what your Claude Code sessions are doing"}
+            onclick={() => toggle(k)}
+          >
+            <Icon name={k === "web" ? "search" : k === "screen" ? "monitor" : k === "clipboard" ? "clipboard" : "agent"} size={14} />
+            {CONTEXT_LABEL[k]}{#if k === "screen" && screenTitle}<span class="ctx-sub">· {screenTitle}</span>{/if}
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <form class="composer" onsubmit={(e) => { e.preventDefault(); send(); }}>
       <textarea
@@ -271,6 +371,56 @@
 
   .msg { display: flex; flex-direction: column; max-width: 100%; }
   .msg.user { align-items: flex-end; }
+  .attached { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-4); margin-bottom: var(--sp-4); max-width: 85%; }
+  .att {
+    font-size: var(--fs-label);
+    color: var(--c-muted);
+    background: var(--c-surface-card);
+    border-radius: var(--r-pill);
+    padding: 2px var(--sp-8);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .context { display: flex; gap: var(--sp-6); flex-wrap: nowrap; overflow: hidden; }
+  .ctx {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-4);
+    min-width: 0;
+    border: none;
+    border-radius: var(--r-pill);
+    background: var(--c-surface-card);
+    color: var(--c-muted);
+    font: inherit;
+    font-size: var(--fs-label);
+    padding: var(--sp-4) var(--sp-10);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ctx:hover { background: var(--c-hover); color: var(--c-ink); }
+  .ctx.on { background: var(--c-accent); color: var(--c-accent-ink); }
+  .ctx:focus-visible { outline: none; box-shadow: inset 0 0 0 var(--focus-width) var(--c-accent); }
+  .ctx.on:focus-visible { box-shadow: inset 0 0 0 var(--focus-width) var(--c-accent-ink); }
+  .sources { list-style: none; margin: var(--sp-8) 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .sources a {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-6);
+    font-size: var(--fs-small);
+    color: var(--c-ink);
+    text-decoration: none;
+    border-radius: var(--r-control);
+    padding: 2px var(--sp-4);
+    cursor: pointer;
+    min-width: 0;
+  }
+  .sources a:hover { background: var(--c-hover); }
+  .sources a:focus-visible { outline: none; box-shadow: inset 0 0 0 var(--focus-width) var(--c-accent); }
+  .sources .n { color: var(--c-muted); font-variant-numeric: tabular-nums; min-width: 1.2em; }
+  .sources .host { color: var(--c-muted); font-size: var(--fs-label); margin-left: auto; padding-left: var(--sp-8); white-space: nowrap; }
+  .ctx-sub { overflow: hidden; text-overflow: ellipsis; max-width: 180px; opacity: 0.8; }
   .bubble {
     max-width: 85%;
     padding: var(--sp-8) var(--sp-12);
